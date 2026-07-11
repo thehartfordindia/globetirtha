@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "connectors": [
+    {
+      "providerId": "sample-scotland-tourism",
+      "region": "Scotland",
+      "type": "vacation",
+      "enabled": false,
+      "apiBaseUrl": "https://provider.example.com/api",
+      "webhookEnabled": false,
+      "notes": "Enable only with official contract and credentials"
+    }
+  ]
+}
