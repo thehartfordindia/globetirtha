@@ -1,0 +1,3 @@
+backend/data/*.local.json
+node_modules/
+.env
