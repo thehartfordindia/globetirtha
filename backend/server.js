@@ -2,6 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const store = require("./store");
 
 const PORT = process.env.PORT || 8787;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "change-me";
@@ -27,36 +28,6 @@ const STATUS = {
     rejected: "REJECTED_BY_PROVIDER",
     escalated: "ESCALATED_MANUAL_REVIEW",
 };
-
-function readBookings() {
-    try {
-          const raw = fs.readFileSync(DATA_FILE, "utf8");
-          return JSON.parse(raw);
-    } catch (_error) {
-          return [];
-    }
-}
-
-function writeBookings(bookings) {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(bookings, null, 2));
-}
-
-function readCommunity() {
-    try {
-          const raw = fs.readFileSync(COMMUNITY_FILE, "utf8");
-          const parsed = JSON.parse(raw);
-          return {
-                  reviews: Array.isArray(parsed.reviews) ? parsed.reviews : [],
-                  places: Array.isArray(parsed.places) ? parsed.places : [],
-          };
-    } catch (_error) {
-          return { reviews: [], places: [] };
-    }
-}
-
-function writeCommunity(data) {
-    fs.writeFileSync(COMMUNITY_FILE, JSON.stringify(data, null, 2));
-}
 
 // Server-side sanitisation (defense-in-depth). The frontend also escapes on render.
 function cleanText(value, maxLen) {
@@ -309,13 +280,13 @@ async function dispatchNotificationsForBooking(booking) {
     return booking;
 }
 
-function persistBookingNotifications(booking) {
+async function persistBookingNotifications(booking) {
     try {
-          const all = readBookings();
+          const all = await store.getBookings();
           const index = all.findIndex((item) => item.id === booking.id);
           if (index >= 0) {
                   all[index].notifications = booking.notifications;
-                  writeBookings(all);
+                  await store.saveBookings([all[index]]);
           }
     } catch (_error) {
           // Background persistence failure is non-fatal; status remains PENDING_SEND until retried.
@@ -509,10 +480,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/sitemap.xml") return sendText(res, 200, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${WEBSITE_URL}/</loc></url>\n  <url><loc>${WEBSITE_URL}/api</loc></url>\n</urlset>\n`, "application/xml; charset=utf-8");
     if (req.method === "GET" && req.url === "/site.webmanifest") return sendJson(res, 200, { name: "GlobeTirtha", short_name: "GlobeTirtha", start_url: "/", display: "standalone", background_color: "#f3f7f6", theme_color: "#0b6f53", description: "Holy place and vacation booking website with global geo discovery." });
     if (req.method === "GET" && req.url === "/api") return sendJson(res, 200, { ok: true, docs: ["GET /api/health", "POST /api/bookings", "GET /api/bookings/:id", "POST /api/provider-webhook", "GET /api/community", "POST /api/reviews", "POST /api/places"] });
-    if (req.method === "GET" && req.url === "/api/health") return sendJson(res, 200, { ok: true, service: "globetirtha-booking-api", notifications: { emailProvider: getNotificationProvider("email"), smsProvider: getNotificationProvider("sms") } });
+    if (req.method === "GET" && req.url === "/api/health") return sendJson(res, 200, { ok: true, service: "globetirtha-booking-api", storage: store.mode(), notifications: { emailProvider: getNotificationProvider("email"), smsProvider: getNotificationProvider("sms") } });
 
     if (req.method === "GET" && req.url === "/api/community") {
-          const data = readCommunity();
+          const data = await store.getCommunity();
           const byNewest = (a, b) => (a.createdAt < b.createdAt ? 1 : -1);
           const reviews = [...data.reviews].sort(byNewest).slice(0, 200);
           const places = [...data.places].sort(byNewest).slice(0, 200);
@@ -534,14 +505,13 @@ const server = http.createServer(async (req, res) => {
                   if (!author || !destinationId || !text || !rating) {
                             return sendJson(res, 400, { error: "author, destinationId, rating and text are required." });
                   }
-                  const data = readCommunity();
                   const review = {
                             id: "rev-" + crypto.randomBytes(6).toString("hex"),
                             destinationId, destinationName, author, location,
                             rating, title, text, createdAt: new Date().toISOString(),
                   };
-                  data.reviews.push(review);
-                  writeCommunity(data);
+                  await store.addReview(review);
+                  const data = await store.getCommunity();
                   return sendJson(res, 201, { review, stats: communityStats(data) });
           } catch (_error) {
                   return sendJson(res, 400, { error: "Invalid review payload" });
@@ -567,15 +537,14 @@ const server = http.createServer(async (req, res) => {
                   if (!author || !name || !country) {
                             return sendJson(res, 400, { error: "author, name and country are required." });
                   }
-                  const data = readCommunity();
                   const place = {
                             id: "ugc-" + crypto.randomBytes(6).toString("hex"),
                             name, country, region: region || country, continent,
                             type, spotType, note, author, lat, lon,
                             createdAt: new Date().toISOString(),
                   };
-                  data.places.push(place);
-                  writeCommunity(data);
+                  await store.addPlace(place);
+                  const data = await store.getCommunity();
                   return sendJson(res, 201, { place, stats: communityStats(data) });
           } catch (_error) {
                   return sendJson(res, 400, { error: "Invalid place payload" });
@@ -584,15 +553,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && req.url === "/api/admin/bookings") {
           if (req.headers["x-webhook-secret"] !== WEBHOOK_SECRET) return sendJson(res, 401, { error: "Unauthorized" });
-          const bookings = readBookings().map((b) => evaluateBookingLifecycle(b));
-          writeBookings(bookings);
+          const bookings = (await store.getBookings()).map((b) => evaluateBookingLifecycle(b));
+          await store.saveBookings(bookings);
           return sendJson(res, 200, bookings);
     }
 
                                    if (req.method === "POST" && req.url === "/api/bookings") {
                                          try {
                                                  const payload = await parseJsonBody(req);
-                                                 const bookings = readBookings();
                                                  const accommodationNights = Number(payload.accommodationNights || 0);
                                                  const sla = getSlaPolicy(payload.purpose, accommodationNights);
                                                  const booking = {
@@ -613,8 +581,7 @@ const server = http.createServer(async (req, res) => {
                                                            buildNotification("sms", payload.customer?.phone || "", booking),
                                                          ];
                                                  evaluateBookingLifecycle(booking);
-                                                 bookings.push(booking);
-                                                 writeBookings(bookings);
+                                                 await store.saveBookings([booking]);
                                                  dispatchNotificationsInBackground(booking);
                                                  return sendJson(res, 201, booking);
                                          } catch (_error) {
@@ -624,11 +591,11 @@ const server = http.createServer(async (req, res) => {
 
                                    if (req.method === "GET" && req.url.startsWith("/api/bookings/")) {
                                          const id = decodeURIComponent(req.url.replace("/api/bookings/", ""));
-                                         const bookings = readBookings();
+                                         const bookings = await store.getBookings();
                                          const index = bookings.findIndex((item) => item.id === id);
                                          if (index < 0) return sendJson(res, 404, { error: "Booking not found" });
                                          bookings[index] = evaluateBookingLifecycle(bookings[index]);
-                                         writeBookings(bookings);
+                                         await store.saveBookings([bookings[index]]);
                                          return sendJson(res, 200, bookings[index]);
                                    }
 
@@ -636,7 +603,7 @@ const server = http.createServer(async (req, res) => {
                                          if (req.headers["x-webhook-secret"] !== WEBHOOK_SECRET) return sendJson(res, 401, { error: "Unauthorized webhook" });
                                          try {
                                                  const payload = await parseJsonBody(req);
-                                                 const bookings = readBookings();
+                                                 const bookings = await store.getBookings();
                                                  const index = bookings.findIndex((item) => item.id === payload.bookingId);
                                                  if (index < 0) return sendJson(res, 404, { error: "Booking not found" });
                                                  if (payload.componentType) {
@@ -646,7 +613,7 @@ const server = http.createServer(async (req, res) => {
                                                  bookings[index].status = payload.status || bookings[index].status;
                                                  bookings[index].providerReference = payload.providerReference || bookings[index].providerReference;
                                                  bookings[index] = evaluateBookingLifecycle(bookings[index]);
-                                                 writeBookings(bookings);
+                                                 await store.saveBookings([bookings[index]]);
                                                  return sendJson(res, 200, bookings[index]);
                                          } catch (_error) {
                                                  return sendJson(res, 400, { error: "Invalid webhook payload" });
@@ -659,4 +626,9 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
     console.log(`GlobeTirtha Booking API listening on http://localhost:${PORT}`);
     console.log(`Email provider: ${getNotificationProvider("email")} | SMS provider: ${getNotificationProvider("sms")}`);
+    console.log(`Storage backend: ${store.mode()}`);
+    store
+          .ensureReady()
+          .then(() => console.log(`Storage ready (${store.mode()})`))
+          .catch((error) => console.error("Storage init failed, falling back where possible:", error.message));
 });
