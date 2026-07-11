@@ -1865,6 +1865,43 @@ async function fetchBookingStatus(referenceId) {
   }
 }
 
+async function runBookingStatusCheck(referenceId) {
+  if (!referenceId) {
+    dom.assistOutput.textContent = "Enter a booking reference first.";
+    return;
+  }
+
+  dom.assistOutput.textContent = `Checking status for ${referenceId} ...`;
+  const booking = await fetchBookingStatus(referenceId);
+  if (!booking) {
+    dom.assistOutput.textContent = "Reference not found. Verify the booking ID or provider callback status.";
+    return;
+  }
+
+  const friendly =
+    booking.status === "CONFIRMED_BY_PROVIDER"
+      ? "✅ Your booking is CONFIRMED. You are all set to travel."
+      : booking.status === "REJECTED_BY_PROVIDER"
+      ? "❌ This booking could not be confirmed. Our team will arrange a refund or an alternate option."
+      : booking.status === "ESCALATED_TO_OPS"
+      ? "⏳ Your booking is taking a little longer. Our team is following up with the provider."
+      : "⏳ Your booking is pending provider confirmation. Please do not travel until it is CONFIRMED.";
+
+  dom.assistOutput.textContent =
+    `${friendly}\n\n` +
+    `Booking Reference: ${booking.id}\n` +
+    `Current Status: ${booking.status}\n` +
+    `Payment: ${booking.paymentStatus || "N/A"}\n` +
+    `Destination: ${booking.destinationName || "N/A"}\n` +
+    `Spot: ${booking.spot || "N/A"}\n` +
+    `Elapsed wait: ${booking.elapsedMinutes ?? "N/A"} minutes\n` +
+    `ETA remaining: ${booking.etaMinutesRemaining ?? "N/A"} minutes\n` +
+    `Channel: ${booking.mode === "backend" ? "Backend API" : "Local Fallback"}\n` +
+    `${notificationSummaryLines(booking.notifications).join("\n")}\n\n` +
+    `Next action: ${booking.nextAction || "Wait for provider callback"}\n\n` +
+    "Official travel should proceed only when status is CONFIRMED_BY_PROVIDER.";
+}
+
 async function runLiveQuerySearch() {
   const query = dom.searchInput.value.trim();
   if (!query) {
@@ -2031,31 +2068,8 @@ function bindEvents() {
     dom.bookingRefInput.value = createdBooking.id;
   });
 
-  dom.checkStatusBtn.addEventListener("click", async () => {
-    const referenceId = dom.bookingRefInput.value.trim();
-    if (!referenceId) {
-      dom.assistOutput.textContent = "Enter a booking reference first.";
-      return;
-    }
-
-    const booking = await fetchBookingStatus(referenceId);
-    if (!booking) {
-      dom.assistOutput.textContent = "Reference not found. Verify the booking ID or provider callback status.";
-      return;
-    }
-
-    dom.assistOutput.textContent =
-      `Booking Reference: ${booking.id}\n` +
-      `Current Status: ${booking.status}\n` +
-      `Payment: ${booking.paymentStatus || "N/A"}\n` +
-      `Destination: ${booking.destinationName || "N/A"}\n` +
-      `Spot: ${booking.spot || "N/A"}\n` +
-      `Elapsed wait: ${booking.elapsedMinutes ?? "N/A"} minutes\n` +
-      `ETA remaining: ${booking.etaMinutesRemaining ?? "N/A"} minutes\n` +
-      `Channel: ${booking.mode === "backend" ? "Backend API" : "Local Fallback"}\n` +
-      `${notificationSummaryLines(booking.notifications).join("\n")}\n\n` +
-      `Next action: ${booking.nextAction || "Wait for provider callback"}\n\n` +
-      "Official travel should proceed only when status is CONFIRMED_BY_PROVIDER.";
+  dom.checkStatusBtn.addEventListener("click", () => {
+    runBookingStatusCheck(dom.bookingRefInput.value.trim());
   });
 
   dom.assistBtn.addEventListener("click", () => {
@@ -2093,6 +2107,20 @@ function init() {
   renderPlaces();
   generateAssistancePlan(initial);
   bindEvents();
+  handleBookingLinkParam();
+}
+
+function handleBookingLinkParam() {
+  let ref = "";
+  try {
+    ref = new URLSearchParams(window.location.search).get("booking") || "";
+  } catch (_e) {
+    ref = "";
+  }
+  if (!ref) return;
+  dom.bookingRefInput.value = ref;
+  document.getElementById("book").scrollIntoView({ behavior: "smooth", block: "start" });
+  runBookingStatusCheck(ref);
 }
 
 init();
