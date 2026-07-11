@@ -508,8 +508,9 @@ const ADMIN_HTML = `<!doctype html>
 
 const server = http.createServer(async (req, res) => {
     if (req.method === "OPTIONS") return sendJson(res, 200, { ok: true });
-    if (req.method === "GET" && req.url === "/admin") return sendText(res, 200, ADMIN_HTML, "text/html; charset=utf-8");
-    if (req.method === "GET" && (req.url === "/" || req.url === "/app")) return sendHtmlFile(res, path.join(APP_ROOT, "index.html"));
+    const pathname = (req.url || "/").split("?")[0];
+    if (req.method === "GET" && pathname === "/admin") return sendText(res, 200, ADMIN_HTML, "text/html; charset=utf-8");
+    if (req.method === "GET" && (pathname === "/" || pathname === "/app")) return sendHtmlFile(res, path.join(APP_ROOT, "index.html"));
     if (req.method === "GET" && req.url === "/styles.css") return sendFile(res, path.join(APP_ROOT, "styles.css"));
     if (req.method === "GET" && req.url === "/app.js") return sendFile(res, path.join(APP_ROOT, "app.js"));
     if (req.method === "GET" && req.url === "/googleeb15c89d223d87ec.html") return sendText(res, 200, "google-site-verification: googleeb15c89d223d87ec.html", "text/html; charset=utf-8");
