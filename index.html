@@ -49,6 +49,7 @@
         <a href="#discover">Discover</a>
         <a href="#book">Book</a>
         <a href="#assistant">Assistant</a>
+        <a href="#community">Community</a>
         <a href="#reviews">Reviews</a>
       </nav>
       <div class="header-actions">
@@ -297,6 +298,118 @@
             <p>Darshan tips, routes, dress codes, and stays — personal help at every step.</p>
           </article>
         </div>
+      </section>
+
+      <section id="community" class="panel reveal">
+        <div class="panel-head">
+          <h3>Traveller Community — grow the map with us</h3>
+          <p>Share your experience and add hidden gems you discover. Everything you post appears here live for the whole world.</p>
+        </div>
+
+        <div class="community-stats">
+          <div class="cstat"><span id="statReviews" class="cstat-num">0</span><span class="cstat-label">Reviews shared</span></div>
+          <div class="cstat"><span id="statAvgRating" class="cstat-num">0.0</span><span class="cstat-label">Average rating</span></div>
+          <div class="cstat"><span id="statContributors" class="cstat-num">0</span><span class="cstat-label">Contributors</span></div>
+          <div class="cstat"><span id="statUserPlaces" class="cstat-num">0</span><span class="cstat-label">Places added</span></div>
+        </div>
+
+        <div class="community-forms">
+          <form id="reviewForm" class="community-form">
+            <h4>Share your experience</h4>
+            <label>Destination
+              <select id="reviewDestination" required></select>
+            </label>
+            <div class="form-row">
+              <label>Your name
+                <input id="reviewAuthor" type="text" maxlength="60" required placeholder="e.g., Ravi K." />
+              </label>
+              <label>Your city (optional)
+                <input id="reviewLocation" type="text" maxlength="80" placeholder="City, Country" />
+              </label>
+            </div>
+            <label>Your rating
+              <div id="reviewStars" class="star-input" role="radiogroup" aria-label="Rating">
+                <button type="button" data-star="1" aria-label="1 star">★</button>
+                <button type="button" data-star="2" aria-label="2 stars">★</button>
+                <button type="button" data-star="3" aria-label="3 stars">★</button>
+                <button type="button" data-star="4" aria-label="4 stars">★</button>
+                <button type="button" data-star="5" aria-label="5 stars">★</button>
+              </div>
+              <input id="reviewRating" type="hidden" value="0" />
+            </label>
+            <label>Headline (optional)
+              <input id="reviewTitle" type="text" maxlength="100" placeholder="Short summary of your trip" />
+            </label>
+            <label>Your experience
+              <textarea id="reviewText" maxlength="800" rows="4" required placeholder="What made this journey special?"></textarea>
+            </label>
+            <button type="submit" class="btn btn-primary">Post review</button>
+          </form>
+
+          <form id="addPlaceForm" class="community-form">
+            <h4>Add a place you explored</h4>
+            <div class="form-row">
+              <label>Place name
+                <input id="placeName" type="text" maxlength="100" required placeholder="e.g., Hidden Lake Shrine" />
+              </label>
+              <label>Country
+                <input id="placeCountry" type="text" maxlength="60" required placeholder="Country" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Region / City
+                <input id="placeRegion" type="text" maxlength="80" placeholder="Region or city" />
+              </label>
+              <label>Continent
+                <select id="placeContinent">
+                  <option>Asia</option>
+                  <option>Europe</option>
+                  <option>Africa</option>
+                  <option>Americas</option>
+                  <option>Oceania</option>
+                  <option>Other</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Type
+                <select id="placeType">
+                  <option value="holy">Pilgrimage / Holy</option>
+                  <option value="vacation">Vacation</option>
+                  <option value="mixed" selected>Mixed</option>
+                </select>
+              </label>
+              <label>Category
+                <input id="placeSpotType" type="text" maxlength="40" placeholder="Temple, Beach, Museum..." />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Latitude (optional)
+                <input id="placeLat" type="number" step="any" placeholder="e.g., 12.9716" />
+              </label>
+              <label>Longitude (optional)
+                <input id="placeLon" type="number" step="any" placeholder="e.g., 77.5946" />
+              </label>
+            </div>
+            <label>Your name
+              <input id="placeAuthor" type="text" maxlength="60" required placeholder="Your name" />
+            </label>
+            <label>Why should people visit? (optional)
+              <textarea id="placeNote" maxlength="500" rows="3" placeholder="A short tip about this place"></textarea>
+            </label>
+            <button type="submit" class="btn btn-primary">Add this place</button>
+          </form>
+        </div>
+
+        <div class="community-feed-head">
+          <h4>Recent traveller reviews</h4>
+        </div>
+        <div id="communityFeed" class="community-feed"></div>
+
+        <div class="community-feed-head">
+          <h4>Places added by explorers</h4>
+        </div>
+        <div id="communityPlaces" class="community-places"></div>
       </section>
 
       <section id="reviews" class="panel reveal">
