@@ -490,22 +490,22 @@ textarea {
 }
 
 .chatbot-log {
-  max-height: 260px;
-  min-height: 150px;
+  max-height: 420px;
+  min-height: 300px;
   overflow-y: auto;
-  padding: 0.75rem;
+  padding: 0.9rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
   background: #f4faf8;
 }
 
 .chat-msg {
-  max-width: 85%;
-  padding: 0.5rem 0.7rem;
+  max-width: 88%;
+  padding: 0.6rem 0.8rem;
   border-radius: 12px;
-  font-size: 0.88rem;
-  line-height: 1.4;
+  font-size: 0.92rem;
+  line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
@@ -555,8 +555,8 @@ textarea {
 
 .chatbot-input {
   display: flex;
-  gap: 0.4rem;
-  padding: 0.6rem;
+  gap: 0.5rem;
+  padding: 0.75rem;
   border-top: 1px solid #e3efeb;
 }
 
@@ -564,12 +564,12 @@ textarea {
   flex: 1;
   border: 1px solid #c4d8d1;
   border-radius: 10px;
-  padding: 0.5rem 0.7rem;
-  font-size: 0.88rem;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.95rem;
 }
 
 .chatbot-input .btn {
-  padding: 0.5rem 0.9rem;
+  padding: 0.7rem 1.1rem;
 }
 
 .chat-typing {
