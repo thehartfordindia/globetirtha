@@ -177,18 +177,52 @@ function buildNotification(channel, recipient, booking) {
     };
 }
 
+function statusLine(status, providerReference) {
+    if (status === STATUS.confirmed) {
+          return `Great news — your booking is CONFIRMED! You are all set to travel.` +
+            (providerReference ? `\nProvider reference: ${providerReference}` : "");
+    }
+    if (status === STATUS.rejected) {
+          return `Unfortunately this booking could not be confirmed. Our team is arranging a refund or an alternate option and will contact you.`;
+    }
+    if (status === STATUS.escalated) {
+          return `Your booking is taking a little longer than usual. Our team is following up with the provider and will update you shortly.`;
+    }
+    return `IMPORTANT: Do not travel until status is CONFIRMED_BY_PROVIDER.`;
+}
+
 function buildCustomerMessage(payload) {
     return (
           `GlobeTirtha Booking ${payload.bookingId}\n` +
           `Destination: ${payload.destinationName} — ${payload.spot}\n` +
           `Status: ${payload.status}\n` +
-          `IMPORTANT: Do not travel until status is CONFIRMED_BY_PROVIDER.\n` +
+          `${statusLine(payload.status, payload.providerReference)}\n` +
           `Check status: ${payload.websiteUrl}`
         );
 }
 
 function buildSmsMessage(payload) {
+    if (payload.status === STATUS.confirmed) {
+          return `GlobeTirtha ${payload.bookingId}: CONFIRMED! You are all set. Details: ${payload.websiteUrl}`;
+    }
+    if (payload.status === STATUS.rejected) {
+          return `GlobeTirtha ${payload.bookingId}: could not be confirmed. Refund/rebook in progress. ${payload.websiteUrl}`;
+    }
     return `GlobeTirtha ${payload.bookingId}: ${payload.status}.`;
+}
+
+function emailSubjectForStatus(status, bookingId) {
+    if (status === STATUS.confirmed) return `Your GlobeTirtha booking is CONFIRMED — ${bookingId}`;
+    if (status === STATUS.rejected) return `Update on your GlobeTirtha booking — ${bookingId}`;
+    if (status === STATUS.escalated) return `We are following up on your GlobeTirtha booking — ${bookingId}`;
+    return `GlobeTirtha Booking Received — ${bookingId}`;
+}
+
+function eventForStatus(status) {
+    if (status === STATUS.confirmed) return "BOOKING_CONFIRMED";
+    if (status === STATUS.rejected) return "BOOKING_REJECTED";
+    if (status === STATUS.escalated) return "BOOKING_ESCALATED";
+    return "BOOKING_REQUEST_RECEIVED";
 }
 
 async function sendViaSendGrid(notification, payload) {
@@ -198,7 +232,7 @@ async function sendViaSendGrid(notification, payload) {
           body: JSON.stringify({
                   personalizations: [{ to: [{ email: notification.recipient }] }],
                   from: { email: EMAIL_FROM, name: "GlobeTirtha Bookings" },
-                  subject: `GlobeTirtha Booking Received — ${payload.bookingId}`,
+                  subject: payload.subject || `GlobeTirtha Booking Received — ${payload.bookingId}`,
                   content: [{ type: "text/plain", value: payload.message }],
           }),
           signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
@@ -261,11 +295,13 @@ async function dispatchNotification(notification, payload) {
 async function dispatchNotificationsForBooking(booking) {
     if (!Array.isArray(booking.notifications)) return booking;
     const payloadBase = {
-          event: "BOOKING_REQUEST_RECEIVED",
+          event: eventForStatus(booking.status),
           bookingId: booking.id,
           destinationName: booking.destinationName,
           spot: booking.spot,
           status: booking.status,
+          providerReference: booking.providerReference || null,
+          subject: emailSubjectForStatus(booking.status, booking.id),
           websiteUrl: `${WEBSITE_URL}/?booking=${booking.id}`,
     };
     for (const notification of booking.notifications) {
@@ -614,8 +650,12 @@ const server = http.createServer(async (req, res) => {
                                                  bookings[index].status = payload.status || bookings[index].status;
                                                  bookings[index].providerReference = payload.providerReference || bookings[index].providerReference;
                                                  bookings[index] = evaluateBookingLifecycle(bookings[index]);
-                                                 await store.saveBookings([bookings[index]]);
-                                                 return sendJson(res, 200, bookings[index]);
+                                                 const updatedBooking = bookings[index];
+                                                 const shouldNotify = [STATUS.confirmed, STATUS.rejected].includes(updatedBooking.status) && updatedBooking.lastNotifiedStatus !== updatedBooking.status;
+                                                 if (shouldNotify) updatedBooking.lastNotifiedStatus = updatedBooking.status;
+                                                 await store.saveBookings([updatedBooking]);
+                                                 if (shouldNotify) dispatchNotificationsInBackground(updatedBooking);
+                                                 return sendJson(res, 200, updatedBooking);
                                          } catch (_error) {
                                                  return sendJson(res, 400, { error: "Invalid webhook payload" });
                                          }
