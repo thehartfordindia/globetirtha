@@ -1442,10 +1442,18 @@ const dom = {
 
 const state = {
   livePlaces: [],
+  reviews: [],
+  userPlaces: [],
+  ratings: {},
 };
 
 const PARTNER_API_CONNECTED = false;
-const BACKEND_BASE_URL = "http://localhost:8787";
+// Same-origin in the browser (works for localhost dev and the deployed site);
+// falls back to the local API port only when opened directly from disk (file://).
+const BACKEND_BASE_URL =
+  location.protocol === "http:" || location.protocol === "https:"
+    ? location.origin
+    : "http://localhost:8787";
 
 const keywordAliases = {
   indonasia: "indonesia",
@@ -1558,20 +1566,48 @@ function badgeText(place) {
   return "Mixed";
 }
 
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function ratingStarsHtml(avg) {
+  const full = Math.round(Number(avg) || 0);
+  let out = "";
+  for (let i = 1; i <= 5; i++) out += `<span class="${i <= full ? "on" : ""}">★</span>`;
+  return out;
+}
+
 function cardTemplate(place) {
-  const highlights = place.subPlaces.slice(0, 3).map((spot) => `<li>${spot}</li>`).join("");
+  const highlights = place.subPlaces.slice(0, 3).map((spot) => `<li>${escapeHtml(spot)}</li>`).join("");
   const faved = isFavorite(place.id) ? " is-fav" : "";
+  const rating = state.ratings[place.id];
+  const ratingHtml = rating
+    ? `<div class="card-rating"><span class="stars-mini">${ratingStarsHtml(rating.avg)}</span> <b>${rating.avg.toFixed(1)}</b> <small>(${rating.count})</small></div>`
+    : `<div class="card-rating card-rating-empty">Be the first to review</div>`;
+  const communityPill = place.community ? `<span class="community-pill" title="Added by a traveller">Community</span>` : "";
+  const lat = Number(place.lat) || 0;
+  const lon = Number(place.lon) || 0;
   return `
     <article class="place-card">
       <div class="place-top">
-        <h4>${place.name}</h4>
+        <h4>${escapeHtml(place.name)}</h4>
         <span class="type-pill">${badgeText(place)}</span>
       </div>
-      <button class="fav-btn${faved}" data-fav="${place.id}" data-fav-name="${place.name}" type="button" aria-label="Save to wishlist">♥</button>
-      <p>${place.region}, ${place.country} (${place.continent})</p>
-      <p class="coords">Lat: ${place.lat.toFixed(4)} | Lon: ${place.lon.toFixed(4)} | ${place.spotType}</p>
+      <button class="fav-btn${faved}" data-fav="${escapeHtml(place.id)}" data-fav-name="${escapeHtml(place.name)}" type="button" aria-label="Save to wishlist">♥</button>
+      ${communityPill}
+      <p>${escapeHtml(place.region)}, ${escapeHtml(place.country)} (${escapeHtml(place.continent)})</p>
+      <p class="coords">Lat: ${lat.toFixed(4)} | Lon: ${lon.toFixed(4)} | ${escapeHtml(place.spotType)}</p>
+      ${ratingHtml}
       <ul class="micro-list">${highlights}</ul>
-      <button class="btn btn-ghost" data-select="${place.id}">View and Book</button>
+      <div class="card-actions">
+        <button class="btn btn-ghost" data-select="${escapeHtml(place.id)}">View and Book</button>
+        <button class="btn btn-soft" data-review="${escapeHtml(place.id)}" type="button">★ Review</button>
+      </div>
     </article>
   `;
 }
@@ -2293,4 +2329,327 @@ function initWishlistUi() {
   initBackToTop();
   initNewsletter();
   initWishlistUi();
+  initCommunity();
 })();
+
+/* ============================================================
+   Community layer: traveller reviews + user-added places.
+   All content is stored on the backend and rendered live,
+   so the site grows as people explore and contribute.
+   ============================================================ */
+
+function timeAgo(iso) {
+  const then = new Date(iso).getTime();
+  if (!then) return "";
+  const diff = Math.max(0, Date.now() - then);
+  const days = Math.floor(diff / 86400000);
+  if (days > 0) return days === 1 ? "1 day ago" : `${days} days ago`;
+  const hours = Math.floor(diff / 3600000);
+  if (hours > 0) return `${hours}h ago`;
+  const mins = Math.floor(diff / 60000);
+  return mins <= 1 ? "just now" : `${mins} min ago`;
+}
+
+function normalizeUserPlace(p) {
+  const query = encodeURIComponent(`${p.name} ${p.country}`);
+  const allowed = ["holy", "vacation", "mixed"];
+  return {
+    id: p.id,
+    name: p.name,
+    country: p.country,
+    region: p.region || p.country,
+    continent: p.continent || "Other",
+    type: allowed.includes(p.type) ? p.type : "mixed",
+    spotType: p.spotType || "Community Spot",
+    lat: Number(p.lat) || 0,
+    lon: Number(p.lon) || 0,
+    tags: [p.name, p.country, p.spotType].filter(Boolean).map((s) => String(s).toLowerCase()),
+    subPlaces: [p.name].filter(Boolean),
+    stays: ["Nearby hotels", "Guest houses", "Homestays"],
+    bookingHint: "Community-added spot — verify details before travel",
+    officialBooking: `https://www.google.com/maps/search/?api=1&query=${query}`,
+    assistance: [
+      "Confirm timings and local guidelines before visiting.",
+      "Arrange nearby stays and local transport in advance.",
+      `Explore ${p.region || p.country} highlights around this spot.`,
+    ],
+    community: true,
+    contributor: p.author || "A traveller",
+    note: p.note || "",
+  };
+}
+
+function mergeUserPlaces(places) {
+  const existing = new Set(destinations.map((d) => d.id));
+  let added = 0;
+  places.forEach((p) => {
+    if (!existing.has(p.id)) {
+      destinations.push(normalizeUserPlace(p));
+      existing.add(p.id);
+      added += 1;
+    }
+  });
+  if (added > 0) {
+    const prev = {
+      country: dom.countryFilter.value,
+      region: dom.regionFilter.value,
+      spot: dom.spotFilter.value,
+    };
+    buildFilters();
+    dom.countryFilter.value = prev.country;
+    dom.regionFilter.value = prev.region;
+    dom.spotFilter.value = prev.spot;
+    buildDestinationOptions();
+    populateReviewDestinations();
+  }
+  return added;
+}
+
+async function fetchCommunity() {
+  try {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/community`);
+    if (!res.ok) throw new Error("community unavailable");
+    const data = await res.json();
+    state.reviews = Array.isArray(data.reviews) ? data.reviews : [];
+    state.userPlaces = Array.isArray(data.places) ? data.places : [];
+    state.ratings = (data.stats && data.stats.ratings) || {};
+    mergeUserPlaces(state.userPlaces);
+    renderPlaces();
+    renderCommunityFeed();
+    renderCommunityStats(data.stats || {});
+    updateStatsBar();
+  } catch (_error) {
+    const feed = document.getElementById("communityFeed");
+    if (feed && !state.reviews.length) {
+      feed.innerHTML = '<p class="muted">Community reviews will appear here once the service is online.</p>';
+    }
+  }
+}
+
+function renderCommunityStats(stats) {
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+  set("statReviews", stats.totalReviews || 0);
+  set("statContributors", stats.contributors || 0);
+  set("statUserPlaces", stats.totalPlaces || 0);
+  set("statAvgRating", (stats.averageRating || 0).toFixed(1));
+}
+
+function updateStatsBar() {
+  const nums = document.querySelectorAll(".stats-bar .stat-num");
+  if (nums[0]) {
+    nums[0].dataset.count = String(destinations.length);
+    nums[0].textContent = destinations.length + "+";
+  }
+  const countries = new Set(destinations.map((d) => d.country)).size;
+  if (nums[1]) {
+    nums[1].dataset.count = String(countries);
+    nums[1].textContent = countries + "+";
+  }
+}
+
+function reviewCardHtml(r) {
+  const initial = (r.author || "?").trim().charAt(0).toUpperCase() || "?";
+  const loc = r.location ? ` · ${escapeHtml(r.location)}` : "";
+  const dest = r.destinationName ? escapeHtml(r.destinationName) : "";
+  const title = r.title ? `<p class="review-title">${escapeHtml(r.title)}</p>` : "";
+  return `
+    <article class="review-card">
+      <div class="review-head">
+        <span class="avatar">${escapeHtml(initial)}</span>
+        <div class="review-who">
+          <b>${escapeHtml(r.author)}</b><small>${loc}</small>
+          <div class="review-dest">${dest}</div>
+        </div>
+        <span class="review-time">${escapeHtml(timeAgo(r.createdAt))}</span>
+      </div>
+      <div class="stars-mini">${ratingStarsHtml(r.rating)}</div>
+      ${title}
+      <p class="review-text">${escapeHtml(r.text)}</p>
+    </article>
+  `;
+}
+
+function communityPlaceHtml(p) {
+  const query = encodeURIComponent(`${p.name} ${p.country}`);
+  const typeLabel = p.type === "holy" ? "Devotional" : p.type === "vacation" ? "Vacation" : "Mixed";
+  return `
+    <article class="ugc-card">
+      <div class="place-top">
+        <h4>${escapeHtml(p.name)}</h4>
+        <span class="type-pill">${typeLabel}</span>
+      </div>
+      <p>${escapeHtml(p.region)}, ${escapeHtml(p.country)} (${escapeHtml(p.continent)})</p>
+      <p class="coords">${escapeHtml(p.spotType)}</p>
+      ${p.note ? `<p class="ugc-note">${escapeHtml(p.note)}</p>` : ""}
+      <p class="ugc-by">Added by ${escapeHtml(p.author || "a traveller")}</p>
+      <div class="card-actions">
+        <button class="btn btn-ghost" data-select="${escapeHtml(p.id)}">View and Book</button>
+        <a class="btn btn-soft" href="https://www.google.com/maps/search/?api=1&query=${query}" target="_blank" rel="noopener">Map</a>
+      </div>
+    </article>
+  `;
+}
+
+function renderCommunityFeed() {
+  const feed = document.getElementById("communityFeed");
+  if (feed) {
+    feed.innerHTML = state.reviews.length
+      ? state.reviews.slice(0, 12).map(reviewCardHtml).join("")
+      : '<p class="muted">No reviews yet. Be the first to share your journey!</p>';
+  }
+  const placesWrap = document.getElementById("communityPlaces");
+  if (placesWrap) {
+    placesWrap.innerHTML = state.userPlaces.length
+      ? state.userPlaces.slice(0, 12).map(communityPlaceHtml).join("")
+      : '<p class="muted">No traveller-added places yet. Add one you love!</p>';
+  }
+}
+
+function populateReviewDestinations() {
+  const sel = document.getElementById("reviewDestination");
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Select a destination…</option>';
+  [...destinations]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .forEach((d) => sel.add(new Option(`${d.name} — ${d.country}`, d.id)));
+  if (current) sel.value = current;
+}
+
+function initStarInput() {
+  const wrap = document.getElementById("reviewStars");
+  const hidden = document.getElementById("reviewRating");
+  if (!wrap || !hidden) return;
+  const stars = [...wrap.querySelectorAll("[data-star]")];
+  const paint = (val) => stars.forEach((s) => s.classList.toggle("on", Number(s.dataset.star) <= val));
+  stars.forEach((s) => {
+    s.addEventListener("mouseenter", () => paint(Number(s.dataset.star)));
+    s.addEventListener("click", () => {
+      hidden.value = s.dataset.star;
+      paint(Number(s.dataset.star));
+    });
+  });
+  wrap.addEventListener("mouseleave", () => paint(Number(hidden.value) || 0));
+  paint(Number(hidden.value) || 0);
+}
+
+async function submitReview(event) {
+  event.preventDefault();
+  const destSel = document.getElementById("reviewDestination");
+  const destId = destSel ? destSel.value : "";
+  const dest = destinations.find((d) => d.id === destId);
+  const rating = Number(document.getElementById("reviewRating").value) || 0;
+  const author = document.getElementById("reviewAuthor").value.trim();
+  const text = document.getElementById("reviewText").value.trim();
+  if (!destId || !author || !text || !rating) {
+    showToast("Please pick a destination, add your name, a rating and your experience.", "");
+    return;
+  }
+  const payload = {
+    destinationId: destId,
+    destinationName: dest ? dest.name : "",
+    author,
+    location: document.getElementById("reviewLocation").value.trim(),
+    title: document.getElementById("reviewTitle").value.trim(),
+    text,
+    rating,
+  };
+  try {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/reviews`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not post review");
+    state.reviews.unshift(data.review);
+    state.ratings = (data.stats && data.stats.ratings) || state.ratings;
+    renderCommunityFeed();
+    renderCommunityStats(data.stats || {});
+    renderPlaces();
+    document.getElementById("reviewForm").reset();
+    document.getElementById("reviewRating").value = "0";
+    initStarInput();
+    showToast("Thank you! Your review is now live ★", "success");
+  } catch (err) {
+    showToast(err.message || "Could not post review right now.", "");
+  }
+}
+
+async function submitPlace(event) {
+  event.preventDefault();
+  const payload = {
+    name: document.getElementById("placeName").value.trim(),
+    country: document.getElementById("placeCountry").value.trim(),
+    region: document.getElementById("placeRegion").value.trim(),
+    continent: document.getElementById("placeContinent").value,
+    type: document.getElementById("placeType").value,
+    spotType: document.getElementById("placeSpotType").value.trim(),
+    lat: document.getElementById("placeLat").value,
+    lon: document.getElementById("placeLon").value,
+    author: document.getElementById("placeAuthor").value.trim(),
+    note: document.getElementById("placeNote").value.trim(),
+  };
+  if (!payload.name || !payload.country || !payload.author) {
+    showToast("Please add at least the place name, country and your name.", "");
+    return;
+  }
+  try {
+    const res = await fetch(`${BACKEND_BASE_URL}/api/places`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not add place");
+    state.userPlaces.unshift(data.place);
+    mergeUserPlaces([data.place]);
+    renderCommunityFeed();
+    renderCommunityStats(data.stats || {});
+    renderPlaces();
+    updateStatsBar();
+    document.getElementById("addPlaceForm").reset();
+    showToast(`"${data.place.name}" added to the map — thank you!`, "success");
+  } catch (err) {
+    showToast(err.message || "Could not add place right now.", "");
+  }
+}
+
+function openReviewFor(id) {
+  const sel = document.getElementById("reviewDestination");
+  if (sel) sel.value = id;
+  const section = document.getElementById("community");
+  if (section) section.scrollIntoView({ behavior: "smooth", block: "start" });
+  const author = document.getElementById("reviewAuthor");
+  setTimeout(() => author && author.focus(), 400);
+}
+
+function initCommunity() {
+  populateReviewDestinations();
+  initStarInput();
+  const reviewForm = document.getElementById("reviewForm");
+  const placeForm = document.getElementById("addPlaceForm");
+  if (reviewForm) reviewForm.addEventListener("submit", submitReview);
+  if (placeForm) placeForm.addEventListener("submit", submitPlace);
+
+  const placesWrap = document.getElementById("communityPlaces");
+  if (placesWrap) {
+    placesWrap.addEventListener("click", (event) => {
+      const target = event.target.closest("[data-select]");
+      if (target) selectDestination(target.getAttribute("data-select"));
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    const reviewBtn = event.target.closest("[data-review]");
+    if (reviewBtn) {
+      event.preventDefault();
+      openReviewFor(reviewBtn.getAttribute("data-review"));
+    }
+  });
+
+  fetchCommunity();
+}
