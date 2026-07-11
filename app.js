@@ -1445,6 +1445,7 @@ const state = {
   reviews: [],
   userPlaces: [],
   ratings: {},
+  reviewSort: "newest",
 };
 
 const PARTNER_API_CONNECTED = false;
@@ -2415,6 +2416,7 @@ async function fetchCommunity() {
     state.ratings = (data.stats && data.stats.ratings) || {};
     mergeUserPlaces(state.userPlaces);
     renderPlaces();
+    renderTrending();
     renderCommunityFeed();
     renderCommunityStats(data.stats || {});
     updateStatsBar();
@@ -2450,22 +2452,87 @@ function updateStatsBar() {
   }
 }
 
+function avatarColor(name) {
+  const palette = [
+    ["#0b6f53", "#12a074"],
+    ["#8a3ffc", "#c774f0"],
+    ["#0f62fe", "#4589ff"],
+    ["#d4380d", "#ff7a45"],
+    ["#b28600", "#f5a623"],
+    ["#087f5b", "#20c997"],
+    ["#c2255c", "#f06595"],
+  ];
+  let h = 0;
+  const s = String(name || "?");
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return palette[h % palette.length];
+}
+
+function goldStarsHtml(rating) {
+  const full = Math.round(Number(rating) || 0);
+  let out = "";
+  for (let i = 1; i <= 5; i++) out += `<span class="${i <= full ? "on" : ""}">★</span>`;
+  return out;
+}
+
+function renderTrending() {
+  const wrap = document.getElementById("communityTrending");
+  if (!wrap) return;
+  const ranked = Object.entries(state.ratings || {})
+    .map(([id, r]) => {
+      const dest = destinations.find((d) => d.id === id);
+      return {
+        id,
+        name: dest ? dest.name : id,
+        country: dest ? dest.country : "",
+        avg: Number(r && r.avg) || 0,
+        count: Number(r && r.count) || 0,
+      };
+    })
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count || b.avg - a.avg)
+    .slice(0, 6);
+
+  if (!ranked.length) {
+    wrap.innerHTML = '<p class="muted">No ratings yet — post the first review to start the leaderboard!</p>';
+    return;
+  }
+  wrap.innerHTML = ranked
+    .map((x, i) => {
+      const medal = i === 0 ? "gold" : i === 1 ? "silver" : i === 2 ? "bronze" : "";
+      const loc = x.country ? `<small>${escapeHtml(x.country)}</small>` : "";
+      return `
+        <button class="trending-card ${medal}" data-select="${escapeHtml(x.id)}" title="View and book ${escapeHtml(x.name)}">
+          <span class="trend-rank">#${i + 1}</span>
+          <span class="trend-info">
+            <b>${escapeHtml(x.name)}</b>${loc}
+            <span class="trend-meta"><span class="stars-mini">${goldStarsHtml(x.avg)}</span> ${x.avg.toFixed(1)} · ${x.count} review${x.count === 1 ? "" : "s"}</span>
+          </span>
+        </button>`;
+    })
+    .join("");
+}
+
 function reviewCardHtml(r) {
   const initial = (r.author || "?").trim().charAt(0).toUpperCase() || "?";
+  const [c1, c2] = avatarColor(r.author);
   const loc = r.location ? ` · ${escapeHtml(r.location)}` : "";
   const dest = r.destinationName ? escapeHtml(r.destinationName) : "";
   const title = r.title ? `<p class="review-title">${escapeHtml(r.title)}</p>` : "";
   return `
     <article class="review-card">
       <div class="review-head">
-        <span class="avatar">${escapeHtml(initial)}</span>
+        <span class="avatar" style="background:linear-gradient(135deg, ${c1}, ${c2})">${escapeHtml(initial)}</span>
         <div class="review-who">
           <b>${escapeHtml(r.author)}</b><small>${loc}</small>
           <div class="review-dest">${dest}</div>
         </div>
         <span class="review-time">${escapeHtml(timeAgo(r.createdAt))}</span>
       </div>
-      <div class="stars-mini">${ratingStarsHtml(r.rating)}</div>
+      <div class="review-rate">
+        <span class="stars-mini">${goldStarsHtml(r.rating)}</span>
+        <span class="verified-badge" title="Posted by a traveller">✓ Verified traveller</span>
+      </div>
       ${title}
       <p class="review-text">${escapeHtml(r.text)}</p>
     </article>
@@ -2493,11 +2560,24 @@ function communityPlaceHtml(p) {
   `;
 }
 
+function sortedReviews() {
+  const list = [...state.reviews];
+  const sort = state.reviewSort || "newest";
+  if (sort === "highest") {
+    list.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || new Date(b.createdAt) - new Date(a.createdAt));
+  } else if (sort === "lowest") {
+    list.sort((a, b) => (Number(a.rating) || 0) - (Number(b.rating) || 0) || new Date(b.createdAt) - new Date(a.createdAt));
+  } else {
+    list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+  return list;
+}
+
 function renderCommunityFeed() {
   const feed = document.getElementById("communityFeed");
   if (feed) {
     feed.innerHTML = state.reviews.length
-      ? state.reviews.slice(0, 12).map(reviewCardHtml).join("")
+      ? sortedReviews().slice(0, 12).map(reviewCardHtml).join("")
       : '<p class="muted">No reviews yet. Be the first to share your journey!</p>';
   }
   const placesWrap = document.getElementById("communityPlaces");
@@ -2567,6 +2647,7 @@ async function submitReview(event) {
     if (!res.ok) throw new Error(data.error || "Could not post review");
     state.reviews.unshift(data.review);
     state.ratings = (data.stats && data.stats.ratings) || state.ratings;
+    renderTrending();
     renderCommunityFeed();
     renderCommunityStats(data.stats || {});
     renderPlaces();
@@ -2607,6 +2688,7 @@ async function submitPlace(event) {
     if (!res.ok) throw new Error(data.error || "Could not add place");
     state.userPlaces.unshift(data.place);
     mergeUserPlaces([data.place]);
+    renderTrending();
     renderCommunityFeed();
     renderCommunityStats(data.stats || {});
     renderPlaces();
@@ -2640,6 +2722,22 @@ function initCommunity() {
     placesWrap.addEventListener("click", (event) => {
       const target = event.target.closest("[data-select]");
       if (target) selectDestination(target.getAttribute("data-select"));
+    });
+  }
+
+  const trendingWrap = document.getElementById("communityTrending");
+  if (trendingWrap) {
+    trendingWrap.addEventListener("click", (event) => {
+      const target = event.target.closest("[data-select]");
+      if (target) selectDestination(target.getAttribute("data-select"));
+    });
+  }
+
+  const sortSel = document.getElementById("reviewSort");
+  if (sortSel) {
+    sortSel.addEventListener("change", () => {
+      state.reviewSort = sortSel.value;
+      renderCommunityFeed();
     });
   }
 
