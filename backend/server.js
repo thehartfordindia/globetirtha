@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const PORT = process.env.PORT || 8787;
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || "change-me";
 const DATA_FILE = path.join(__dirname, "data", "bookings.json");
+const COMMUNITY_FILE = path.join(__dirname, "data", "community.json");
 const APP_ROOT = path.join(__dirname, "..");
 const WEBSITE_URL = process.env.WEBSITE_URL || `http://localhost:${PORT}`;
 
@@ -38,6 +39,82 @@ function readBookings() {
 
 function writeBookings(bookings) {
     fs.writeFileSync(DATA_FILE, JSON.stringify(bookings, null, 2));
+}
+
+function readCommunity() {
+    try {
+          const raw = fs.readFileSync(COMMUNITY_FILE, "utf8");
+          const parsed = JSON.parse(raw);
+          return {
+                  reviews: Array.isArray(parsed.reviews) ? parsed.reviews : [],
+                  places: Array.isArray(parsed.places) ? parsed.places : [],
+          };
+    } catch (_error) {
+          return { reviews: [], places: [] };
+    }
+}
+
+function writeCommunity(data) {
+    fs.writeFileSync(COMMUNITY_FILE, JSON.stringify(data, null, 2));
+}
+
+// Server-side sanitisation (defense-in-depth). The frontend also escapes on render.
+function cleanText(value, maxLen) {
+    if (typeof value !== "string") return "";
+    return value
+          .replace(/[<>]/g, "")
+          .replace(/[\u0000-\u001f\u007f]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, maxLen);
+}
+
+function clampNumber(value, min, max, fallback) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+}
+
+function communityStats(data) {
+    const reviews = data.reviews || [];
+    const places = data.places || [];
+    const byDest = {};
+    reviews.forEach((r) => {
+          if (!byDest[r.destinationId]) byDest[r.destinationId] = { sum: 0, count: 0 };
+          byDest[r.destinationId].sum += r.rating;
+          byDest[r.destinationId].count += 1;
+    });
+    const ratings = {};
+    Object.keys(byDest).forEach((id) => {
+          const { sum, count } = byDest[id];
+          ratings[id] = { avg: Math.round((sum / count) * 10) / 10, count };
+    });
+    const contributors = new Set();
+    reviews.forEach((r) => contributors.add((r.author || "").toLowerCase()));
+    places.forEach((p) => contributors.add((p.author || "").toLowerCase()));
+    contributors.delete("");
+    const averageRating = reviews.length
+          ? Math.round((reviews.reduce((a, r) => a + r.rating, 0) / reviews.length) * 10) / 10
+          : 0;
+    return {
+          totalReviews: reviews.length,
+          totalPlaces: places.length,
+          contributors: contributors.size,
+          averageRating,
+          ratings,
+    };
+}
+
+// Lightweight in-memory per-IP throttle to deter spam on public write endpoints.
+const rateBuckets = new Map();
+function isRateLimited(ip) {
+    const now = Date.now();
+    const windowMs = 60 * 1000;
+    const maxPerWindow = 15;
+    const recent = (rateBuckets.get(ip) || []).filter((t) => now - t < windowMs);
+    recent.push(now);
+    rateBuckets.set(ip, recent);
+    return recent.length > maxPerWindow;
 }
 
 function sendJson(res, statusCode, body) {
@@ -431,8 +508,79 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/robots.txt") return sendText(res, 200, `User-agent: *\nAllow: /\nSitemap: ${WEBSITE_URL}/sitemap.xml\n`, "text/plain; charset=utf-8");
     if (req.method === "GET" && req.url === "/sitemap.xml") return sendText(res, 200, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${WEBSITE_URL}/</loc></url>\n  <url><loc>${WEBSITE_URL}/api</loc></url>\n</urlset>\n`, "application/xml; charset=utf-8");
     if (req.method === "GET" && req.url === "/site.webmanifest") return sendJson(res, 200, { name: "GlobeTirtha", short_name: "GlobeTirtha", start_url: "/", display: "standalone", background_color: "#f3f7f6", theme_color: "#0b6f53", description: "Holy place and vacation booking website with global geo discovery." });
-    if (req.method === "GET" && req.url === "/api") return sendJson(res, 200, { ok: true, docs: ["GET /api/health", "POST /api/bookings", "GET /api/bookings/:id", "POST /api/provider-webhook"] });
+    if (req.method === "GET" && req.url === "/api") return sendJson(res, 200, { ok: true, docs: ["GET /api/health", "POST /api/bookings", "GET /api/bookings/:id", "POST /api/provider-webhook", "GET /api/community", "POST /api/reviews", "POST /api/places"] });
     if (req.method === "GET" && req.url === "/api/health") return sendJson(res, 200, { ok: true, service: "globetirtha-booking-api", notifications: { emailProvider: getNotificationProvider("email"), smsProvider: getNotificationProvider("sms") } });
+
+    if (req.method === "GET" && req.url === "/api/community") {
+          const data = readCommunity();
+          const byNewest = (a, b) => (a.createdAt < b.createdAt ? 1 : -1);
+          const reviews = [...data.reviews].sort(byNewest).slice(0, 200);
+          const places = [...data.places].sort(byNewest).slice(0, 200);
+          return sendJson(res, 200, { reviews, places, stats: communityStats(data) });
+    }
+
+    if (req.method === "POST" && req.url === "/api/reviews") {
+          const ip = req.socket.remoteAddress || "unknown";
+          if (isRateLimited(ip)) return sendJson(res, 429, { error: "Too many submissions. Please slow down and try again shortly." });
+          try {
+                  const payload = await parseJsonBody(req);
+                  const author = cleanText(payload.author, 60);
+                  const destinationId = cleanText(payload.destinationId, 60);
+                  const destinationName = cleanText(payload.destinationName, 120);
+                  const title = cleanText(payload.title, 100);
+                  const text = cleanText(payload.text, 800);
+                  const location = cleanText(payload.location, 80);
+                  const rating = Math.round(clampNumber(payload.rating, 1, 5, 0));
+                  if (!author || !destinationId || !text || !rating) {
+                            return sendJson(res, 400, { error: "author, destinationId, rating and text are required." });
+                  }
+                  const data = readCommunity();
+                  const review = {
+                            id: "rev-" + crypto.randomBytes(6).toString("hex"),
+                            destinationId, destinationName, author, location,
+                            rating, title, text, createdAt: new Date().toISOString(),
+                  };
+                  data.reviews.push(review);
+                  writeCommunity(data);
+                  return sendJson(res, 201, { review, stats: communityStats(data) });
+          } catch (_error) {
+                  return sendJson(res, 400, { error: "Invalid review payload" });
+          }
+    }
+
+    if (req.method === "POST" && req.url === "/api/places") {
+          const ip = req.socket.remoteAddress || "unknown";
+          if (isRateLimited(ip)) return sendJson(res, 429, { error: "Too many submissions. Please slow down and try again shortly." });
+          try {
+                  const payload = await parseJsonBody(req);
+                  const author = cleanText(payload.author, 60);
+                  const name = cleanText(payload.name, 100);
+                  const country = cleanText(payload.country, 60);
+                  const region = cleanText(payload.region, 80);
+                  const continent = cleanText(payload.continent, 40) || "Other";
+                  const spotType = cleanText(payload.spotType, 40) || "Community Spot";
+                  const note = cleanText(payload.note, 500);
+                  const allowedTypes = ["holy", "vacation", "mixed"];
+                  const type = allowedTypes.includes(payload.type) ? payload.type : "mixed";
+                  const lat = clampNumber(payload.lat, -90, 90, 0);
+                  const lon = clampNumber(payload.lon, -180, 180, 0);
+                  if (!author || !name || !country) {
+                            return sendJson(res, 400, { error: "author, name and country are required." });
+                  }
+                  const data = readCommunity();
+                  const place = {
+                            id: "ugc-" + crypto.randomBytes(6).toString("hex"),
+                            name, country, region: region || country, continent,
+                            type, spotType, note, author, lat, lon,
+                            createdAt: new Date().toISOString(),
+                  };
+                  data.places.push(place);
+                  writeCommunity(data);
+                  return sendJson(res, 201, { place, stats: communityStats(data) });
+          } catch (_error) {
+                  return sendJson(res, 400, { error: "Invalid place payload" });
+          }
+    }
 
     if (req.method === "GET" && req.url === "/api/admin/bookings") {
           if (req.headers["x-webhook-secret"] !== WEBHOOK_SECRET) return sendJson(res, 401, { error: "Unauthorized" });
