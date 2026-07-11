@@ -573,12 +573,14 @@ function badgeText(place) {
 
 function cardTemplate(place) {
   const highlights = place.subPlaces.slice(0, 3).map((spot) => `<li>${spot}</li>`).join("");
+  const faved = isFavorite(place.id) ? " is-fav" : "";
   return `
     <article class="place-card">
       <div class="place-top">
         <h4>${place.name}</h4>
         <span class="type-pill">${badgeText(place)}</span>
       </div>
+      <button class="fav-btn${faved}" data-fav="${place.id}" data-fav-name="${place.name}" type="button" aria-label="Save to wishlist">♥</button>
       <p>${place.region}, ${place.country} (${place.continent})</p>
       <p class="coords">Lat: ${place.lat.toFixed(4)} | Lon: ${place.lon.toFixed(4)} | ${place.spotType}</p>
       <ul class="micro-list">${highlights}</ul>
@@ -1070,3 +1072,238 @@ function init() {
 }
 
 init();
+
+/* ============================================================
+   UI Enhancements: theme, wishlist, counters, reveal, toasts
+   (additive, self-contained — does not alter booking logic)
+   ============================================================ */
+const FAV_KEY = "gt_favorites_v1";
+
+function getFavorites() {
+  try {
+    return JSON.parse(localStorage.getItem(FAV_KEY) || "{}");
+  } catch (_e) {
+    return {};
+  }
+}
+
+function isFavorite(id) {
+  return Boolean(getFavorites()[id]);
+}
+
+function toggleFavorite(id, name) {
+  const favs = getFavorites();
+  if (favs[id]) {
+    delete favs[id];
+  } else {
+    favs[id] = name || id;
+  }
+  localStorage.setItem(FAV_KEY, JSON.stringify(favs));
+  return Boolean(favs[id]);
+}
+
+function showToast(message, type) {
+  const host = document.getElementById("toastHost");
+  if (!host) return;
+  const el = document.createElement("div");
+  el.className = "toast" + (type ? " toast-" + type : "");
+  el.textContent = message;
+  host.appendChild(el);
+  requestAnimationFrame(() => el.classList.add("show"));
+  setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => el.remove(), 350);
+  }, 2600);
+}
+
+function updateWishlistCount() {
+  const count = Object.keys(getFavorites()).length;
+  const badge = document.getElementById("wishlistCount");
+  if (!badge) return;
+  badge.textContent = String(count);
+  badge.hidden = count === 0;
+}
+
+function renderWishlistDrawer() {
+  const wrap = document.getElementById("wishlistItems");
+  if (!wrap) return;
+  const favs = getFavorites();
+  const ids = Object.keys(favs);
+  if (!ids.length) {
+    wrap.innerHTML = '<p class="wishlist-empty">No saved places yet. Tap the ♥ on any destination.</p>';
+    return;
+  }
+  wrap.innerHTML = ids
+    .map(
+      (id) => `
+      <div class="wishlist-item">
+        <span>${favs[id]}</span>
+        <div class="wishlist-item-actions">
+          <button class="btn btn-ghost" data-wish-book="${id}" type="button">Book</button>
+          <button class="wish-remove" data-wish-remove="${id}" type="button" aria-label="Remove">✕</button>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+
+function openWishlist() {
+  renderWishlistDrawer();
+  const drawer = document.getElementById("wishlistDrawer");
+  const backdrop = document.getElementById("wishlistBackdrop");
+  if (drawer) drawer.hidden = false;
+  if (backdrop) backdrop.hidden = false;
+  requestAnimationFrame(() => {
+    if (drawer) drawer.classList.add("open");
+  });
+}
+
+function closeWishlist() {
+  const drawer = document.getElementById("wishlistDrawer");
+  const backdrop = document.getElementById("wishlistBackdrop");
+  if (drawer) drawer.classList.remove("open");
+  if (backdrop) backdrop.hidden = true;
+  setTimeout(() => {
+    if (drawer) drawer.hidden = true;
+  }, 300);
+}
+
+function initTheme() {
+  const toggle = document.getElementById("themeToggle");
+  const saved = localStorage.getItem("gt_theme");
+  if (saved === "dark") {
+    document.documentElement.setAttribute("data-theme", "dark");
+    if (toggle) toggle.querySelector(".icon-theme").textContent = "☀️";
+  }
+  if (toggle) {
+    toggle.addEventListener("click", () => {
+      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if (isDark) {
+        document.documentElement.removeAttribute("data-theme");
+        localStorage.setItem("gt_theme", "light");
+        toggle.querySelector(".icon-theme").textContent = "🌙";
+      } else {
+        document.documentElement.setAttribute("data-theme", "dark");
+        localStorage.setItem("gt_theme", "dark");
+        toggle.querySelector(".icon-theme").textContent = "☀️";
+      }
+    });
+  }
+}
+
+function initCounters() {
+  const nums = Array.from(document.querySelectorAll(".stat-num"));
+  if (!nums.length || !("IntersectionObserver" in window)) {
+    nums.forEach((n) => (n.textContent = n.dataset.count + (n.dataset.suffix || "")));
+    return;
+  }
+  const animate = (el) => {
+    const target = Number(el.dataset.count || 0);
+    const suffix = el.dataset.suffix || "";
+    const duration = 1400;
+    const start = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * eased) + suffix;
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        animate(entry.target);
+        obs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.4 });
+  nums.forEach((n) => obs.observe(n));
+}
+
+function initReveal() {
+  const items = Array.from(document.querySelectorAll(".reveal"));
+  if (!("IntersectionObserver" in window)) {
+    items.forEach((el) => el.classList.add("in-view"));
+    return;
+  }
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("in-view");
+        obs.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  items.forEach((el) => obs.observe(el));
+}
+
+function initBackToTop() {
+  const btn = document.getElementById("backToTop");
+  if (!btn) return;
+  window.addEventListener("scroll", () => {
+    btn.hidden = window.scrollY < 500;
+  });
+  btn.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+}
+
+function initNewsletter() {
+  const form = document.getElementById("newsletterForm");
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = document.getElementById("newsletterEmail");
+    showToast("Subscribed! Check your inbox for a welcome note.", "success");
+    if (input) input.value = "";
+  });
+}
+
+function initWishlistUi() {
+  updateWishlistCount();
+
+  document.addEventListener("click", (event) => {
+    const favBtn = event.target.closest("[data-fav]");
+    if (favBtn) {
+      event.preventDefault();
+      const id = favBtn.getAttribute("data-fav");
+      const name = favBtn.getAttribute("data-fav-name");
+      const nowFav = toggleFavorite(id, name);
+      favBtn.classList.toggle("is-fav", nowFav);
+      updateWishlistCount();
+      showToast(nowFav ? "Saved to your wishlist ♥" : "Removed from wishlist", nowFav ? "success" : "");
+      return;
+    }
+    const removeBtn = event.target.closest("[data-wish-remove]");
+    if (removeBtn) {
+      const id = removeBtn.getAttribute("data-wish-remove");
+      toggleFavorite(id);
+      updateWishlistCount();
+      renderWishlistDrawer();
+      document.querySelectorAll(`[data-fav="${id}"]`).forEach((b) => b.classList.remove("is-fav"));
+      return;
+    }
+    const wishBook = event.target.closest("[data-wish-book]");
+    if (wishBook) {
+      const id = wishBook.getAttribute("data-wish-book");
+      closeWishlist();
+      if (typeof selectDestination === "function") selectDestination(id);
+      return;
+    }
+  });
+
+  const wishlistBtn = document.getElementById("wishlistBtn");
+  const closeBtn = document.getElementById("closeWishlist");
+  const backdrop = document.getElementById("wishlistBackdrop");
+  if (wishlistBtn) wishlistBtn.addEventListener("click", openWishlist);
+  if (closeBtn) closeBtn.addEventListener("click", closeWishlist);
+  if (backdrop) backdrop.addEventListener("click", closeWishlist);
+}
+
+(function initEnhancements() {
+  initTheme();
+  initCounters();
+  initReveal();
+  initBackToTop();
+  initNewsletter();
+  initWishlistUi();
+})();
