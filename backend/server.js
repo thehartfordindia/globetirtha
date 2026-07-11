@@ -303,8 +303,128 @@ function evaluateBookingLifecycle(booking) {
     return booking;
 }
 
+const ADMIN_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>GlobeTirtha — Partner / Ops Console</title>
+<style>
+  :root { --green:#0b6f53; --bg:#f3f7f6; --card:#fff; --muted:#5c6b66; --danger:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:#12211c; }
+  header { background:var(--green); color:#fff; padding:16px 20px; }
+  header h1 { margin:0; font-size:18px; }
+  header p { margin:4px 0 0; font-size:13px; opacity:.85; }
+  main { max-width:900px; margin:0 auto; padding:20px; }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:var(--card); padding:14px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .bar input { flex:1; min-width:180px; padding:10px; border:1px solid #cdd8d4; border-radius:8px; font-size:14px; }
+  button { cursor:pointer; border:0; border-radius:8px; padding:10px 14px; font-size:14px; font-weight:600; }
+  .btn-primary { background:var(--green); color:#fff; }
+  .btn-confirm { background:#0b6f53; color:#fff; }
+  .btn-reject { background:var(--danger); color:#fff; }
+  .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+  #msg { margin:12px 0; font-size:14px; min-height:18px; }
+  .card { background:var(--card); border-radius:12px; padding:16px; margin:14px 0; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .card h3 { margin:0 0 6px; font-size:16px; }
+  .meta { font-size:13px; color:var(--muted); margin:2px 0; }
+  .pill { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:700; }
+  .s-pending { background:#fff4d6; color:#8a6100; }
+  .s-confirmed { background:#d8f3e6; color:#0b6f53; }
+  .s-rejected { background:#fadad7; color:var(--danger); }
+  .s-escalated { background:#e5defb; color:#5b3fb0; }
+  .comp { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 0; border-top:1px solid #eef2f0; }
+  .comp .label { flex:1; min-width:140px; font-size:14px; }
+  .empty { text-align:center; color:var(--muted); padding:30px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>GlobeTirtha — Partner / Ops Console</h1>
+  <p>Simulates the vendor confirming bookings via the provider webhook. For testing/operations only.</p>
+</header>
+<main>
+  <div class="bar">
+    <input id="secret" type="password" placeholder="Webhook secret (x-webhook-secret)" autocomplete="off" />
+    <button class="btn-primary" id="load">Load bookings</button>
+    <button class="btn-primary" id="refresh" title="Reload list">↻</button>
+  </div>
+  <div id="msg"></div>
+  <div id="list"></div>
+</main>
+<script>
+  var secretEl = document.getElementById("secret");
+  var msgEl = document.getElementById("msg");
+  var listEl = document.getElementById("list");
+
+  function setMsg(t, isErr) { msgEl.textContent = t || ""; msgEl.style.color = isErr ? "#b3261e" : "#0b6f53"; }
+  function statusClass(s) {
+    if (s === "CONFIRMED_BY_PROVIDER") return "s-confirmed";
+    if (s === "REJECTED_BY_PROVIDER") return "s-rejected";
+    if (s === "ESCALATED_MANUAL_REVIEW") return "s-escalated";
+    return "s-pending";
+  }
+  function esc(x) { return String(x == null ? "" : x).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+
+  function loadBookings() {
+    var secret = secretEl.value.trim();
+    if (!secret) { setMsg("Enter the webhook secret first.", true); return; }
+    setMsg("Loading...", false);
+    fetch("/api/admin/bookings", { headers: { "x-webhook-secret": secret } })
+      .then(function(r){ if (r.status === 401) throw new Error("Wrong secret (401)."); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(items){ render(items); setMsg(items.length + " booking(s) loaded.", false); })
+      .catch(function(e){ setMsg(e.message, true); listEl.innerHTML = ""; });
+  }
+
+  function confirmComponent(bookingId, componentType, newStatus) {
+    var secret = secretEl.value.trim();
+    setMsg("Sending " + newStatus + " for " + componentType + "...", false);
+    fetch("/api/provider-webhook", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-webhook-secret": secret },
+      body: JSON.stringify({ bookingId: bookingId, componentType: componentType, status: newStatus, providerReference: "OPS-" + Date.now() })
+    })
+      .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(){ setMsg("Updated. Reloading...", false); loadBookings(); })
+      .catch(function(e){ setMsg(e.message, true); });
+  }
+
+  function render(items) {
+    if (!items.length) { listEl.innerHTML = '<div class="empty">No bookings yet.</div>'; return; }
+    items.sort(function(a,b){ return (b.createdAt||"").localeCompare(a.createdAt||""); });
+    var html = "";
+    items.forEach(function(b){
+      html += '<div class="card">';
+      html += '<h3>' + esc(b.destinationName || b.destinationId || "Booking") + ' — ' + esc(b.spot || "") + '</h3>';
+      html += '<div class="meta">ID: ' + esc(b.id) + ' · ' + esc(b.date || "") + ' · ' + esc(b.purpose || "") + '</div>';
+      html += '<div class="meta">Customer: ' + esc((b.customer && b.customer.name) || "-") + ' · ' + esc((b.customer && b.customer.phone) || "-") + '</div>';
+      html += '<div class="meta">Booking status: <span class="pill ' + statusClass(b.status) + '">' + esc(b.status) + '</span> · Payment: ' + esc(b.paymentStatus || "-") + '</div>';
+      (b.components || []).forEach(function(c){
+        var done = c.status === "CONFIRMED_BY_PROVIDER" || c.status === "REJECTED_BY_PROVIDER";
+        html += '<div class="comp">';
+        html += '<span class="label">' + esc(c.label || c.type) + ' <span class="pill ' + statusClass(c.status) + '">' + esc(c.status) + '</span></span>';
+        if (!done) {
+          html += '<button class="btn-confirm" onclick="confirmComponent(\\'' + esc(b.id) + '\\',\\'' + esc(c.type) + '\\',\\'CONFIRMED_BY_PROVIDER\\')">Confirm</button>';
+          html += '<button class="btn-reject" onclick="confirmComponent(\\'' + esc(b.id) + '\\',\\'' + esc(c.type) + '\\',\\'REJECTED_BY_PROVIDER\\')">Reject</button>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    listEl.innerHTML = html;
+  }
+
+  document.getElementById("load").addEventListener("click", loadBookings);
+  document.getElementById("refresh").addEventListener("click", loadBookings);
+  secretEl.addEventListener("keydown", function(e){ if (e.key === "Enter") loadBookings(); });
+</script>
+</body>
+</html>`;
+
 const server = http.createServer(async (req, res) => {
     if (req.method === "OPTIONS") return sendJson(res, 200, { ok: true });
+    if (req.method === "GET" && req.url === "/admin") return sendText(res, 200, ADMIN_HTML, "text/html; charset=utf-8");
     if (req.method === "GET" && (req.url === "/" || req.url === "/app")) return sendHtmlFile(res, path.join(APP_ROOT, "index.html"));
     if (req.method === "GET" && req.url === "/styles.css") return sendFile(res, path.join(APP_ROOT, "styles.css"));
     if (req.method === "GET" && req.url === "/app.js") return sendFile(res, path.join(APP_ROOT, "app.js"));
@@ -313,6 +433,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && req.url === "/site.webmanifest") return sendJson(res, 200, { name: "GlobeTirtha", short_name: "GlobeTirtha", start_url: "/", display: "standalone", background_color: "#f3f7f6", theme_color: "#0b6f53", description: "Holy place and vacation booking website with global geo discovery." });
     if (req.method === "GET" && req.url === "/api") return sendJson(res, 200, { ok: true, docs: ["GET /api/health", "POST /api/bookings", "GET /api/bookings/:id", "POST /api/provider-webhook"] });
     if (req.method === "GET" && req.url === "/api/health") return sendJson(res, 200, { ok: true, service: "globetirtha-booking-api", notifications: { emailProvider: getNotificationProvider("email"), smsProvider: getNotificationProvider("sms") } });
+
+    if (req.method === "GET" && req.url === "/api/admin/bookings") {
+          if (req.headers["x-webhook-secret"] !== WEBHOOK_SECRET) return sendJson(res, 401, { error: "Unauthorized" });
+          const bookings = readBookings().map((b) => evaluateBookingLifecycle(b));
+          writeBookings(bookings);
+          return sendJson(res, 200, bookings);
+    }
 
                                    if (req.method === "POST" && req.url === "/api/bookings") {
                                          try {
