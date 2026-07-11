@@ -563,14 +563,23 @@ textarea {
 
 .chatbot-input input {
   flex: 1;
+  min-width: 0;
   border: 1px solid #c4d8d1;
   border-radius: 10px;
   padding: 0.9rem 1rem;
   font-size: 1rem;
   min-height: 54px;
+  background: #ffffff;
+  color: #1c2b27;
+}
+
+.chatbot-input input::placeholder {
+  color: #8299918f;
 }
 
 .chatbot-input .btn {
+  width: auto;
+  flex: 0 0 auto;
   padding: 0.7rem 1.3rem;
   min-height: 54px;
   font-size: 1rem;
