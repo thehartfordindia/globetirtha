@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GlobeTirtha | Holy & Vacation Booking</title>
+    <meta
+      name="description"
+      content="GlobeTirtha is a global holy place and vacation booking platform for pilgrimage planning, darshan assistance, destination discovery, and travel support."
+    />
+    <meta
+      name="keywords"
+      content="GlobeTirtha, pilgrimage booking, holy places, temple booking, darshan booking, vacation booking, global travel"
+    />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:title" content="GlobeTirtha | Holy & Vacation Booking" />
+    <meta
+      property="og:description"
+      content="Book darshan, pilgrimage, vacations, and global geo-based travel experiences with GlobeTirtha."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="__WEBSITE_URL__/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="GlobeTirtha | Holy & Vacation Booking" />
+    <meta
+      name="twitter:description"
+      content="Global holy place and vacation booking with live geo discovery and guided assistance."
+    />
+    <link rel="canonical" href="__WEBSITE_URL__/" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="logo-wrap">
+        <span class="logo-mark">GT</span>
+        <div>
+          <h1>GlobeTirtha</h1>
+          <p>Holy Journeys + Vacation Intelligence</p>
+        </div>
+      </div>
+      <nav>
+        <a href="#discover">Discover</a>
+        <a href="#book">Book</a>
+        <a href="#assistant">Assistant</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-content">
+          <p class="badge">Geo-Driven Travel Planner</p>
+          <h2>Book Darshan, Pilgrimage, and Vacation Trips Across the World</h2>
+          <p>
+            From Tirupati special darshan slots in Andhra Pradesh to cultural and leisure
+            destinations worldwide, plan your journey with smart assistance in one place.
+          </p>
+          <div class="hero-actions">
+            <button id="exploreNow" class="btn btn-primary">Explore Places</button>
+            <button id="quickTirupati" class="btn btn-ghost">Book Tirupati Now</button>
+          </div>
+        </div>
+        <div class="hero-map-glow" aria-hidden="true"></div>
+      </section>
+
+      <section id="discover" class="panel">
+        <div class="panel-head">
+          <h3>Discover by Geo Location</h3>
+          <p>
+            Discover devotional circuits and vacation escapes with detailed temples, churches,
+            mosques, beaches, attractions, and stay options.
+          </p>
+        </div>
+
+        <div class="filters">
+          <label>
+            Search
+            <input id="searchInput" type="text" placeholder="Try Tirupati, Kyoto, Vatican, Bali..." />
+          </label>
+          <label>
+            Country
+            <select id="countryFilter">
+              <option value="all">All Countries</option>
+            </select>
+          </label>
+          <label>
+            Region / State
+            <select id="regionFilter">
+              <option value="all">All Regions</option>
+            </select>
+          </label>
+          <label>
+            Travel Type
+            <select id="typeFilter">
+              <option value="all">All Types</option>
+              <option value="holy">Holy / Pilgrimage</option>
+              <option value="vacation">Vacation / Leisure</option>
+              <option value="mixed">Mixed</option>
+            </select>
+          </label>
+          <label>
+            Spot Category
+            <select id="spotFilter">
+              <option value="all">All Categories</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="result-bar">
+          <p id="resultCount">0 destinations found</p>
+          <div class="quick-chips" role="group" aria-label="Quick type filters">
+            <button class="chip" data-chip="all">All</button>
+            <button class="chip" data-chip="holy">Devotional</button>
+            <button class="chip" data-chip="vacation">Vacation</button>
+          </div>
+        </div>
+
+        <div id="placesGrid" class="places-grid" aria-live="polite"></div>
+
+        <div class="live-toolbar">
+          <button id="useMyLocation" class="btn btn-live">Use My Live Location</button>
+          <label>
+            Radius (km)
+            <select id="radiusSelect">
+              <option value="5">5 km</option>
+              <option value="10" selected>10 km</option>
+              <option value="25">25 km</option>
+              <option value="50">50 km</option>
+            </select>
+          </label>
+          <button id="liveSearchBtn" class="btn btn-ghost">Live Geo Search by Query</button>
+        </div>
+        <p id="liveStatus" class="live-status">Live mode ready: search any place (Dubai, Qatar, etc.)</p>
+        <div id="livePlacesGrid" class="places-grid" aria-live="polite"></div>
+      </section>
+
+      <section id="details" class="panel detail-panel">
+        <div class="panel-head">
+          <h3>Destination Deep Dive</h3>
+          <p>See exact spots to visit and where to book entry, stay, and local support.</p>
+        </div>
+        <div id="detailContent" class="detail-content"></div>
+      </section>
+
+      <section id="book" class="panel two-col">
+        <div>
+          <div class="panel-head">
+            <h3>Book Your Journey</h3>
+            <p>Select your place and complete booking details.</p>
+          </div>
+
+          <form id="bookingForm" class="booking-form">
+            <label>
+              Destination
+              <select id="destinationSelect" required></select>
+            </label>
+            <label>
+              Place / Spot to Book
+              <select id="subPlaceSelect" required></select>
+            </label>
+            <label>
+              Purpose
+              <select id="purposeSelect" required>
+                <option value="pilgrimage">Pilgrimage</option>
+                <option value="vacation">Vacation</option>
+                <option value="both">Both</option>
+              </select>
+            </label>
+            <label>
+              Darshan / Entry Type
+              <select id="entryType">
+                <option value="general">General</option>
+                <option value="special">Special Entry</option>
+                <option value="vip">VIP / Guided</option>
+              </select>
+            </label>
+            <label>
+              Travel Date
+              <input id="travelDate" type="date" required />
+            </label>
+            <label>
+              Number of Travelers
+              <input id="travelers" type="number" min="1" max="20" value="2" required />
+            </label>
+            <label>
+              Accommodation Nights
+              <input id="accommodationNights" type="number" min="0" max="30" value="2" required />
+            </label>
+            <label>
+              Name
+              <input id="fullName" type="text" placeholder="Your full name" required />
+            </label>
+            <label>
+              Email
+              <input id="email" type="email" placeholder="you@example.com" required />
+            </label>
+            <label>
+              Phone (for SMS updates)
+              <input id="phone" type="tel" placeholder="+44 7xxx xxxxxx" required />
+            </label>
+            <label>
+              Notes
+              <textarea id="notes" rows="3" placeholder="Any special requests?"></textarea>
+            </label>
+            <button type="submit" class="btn btn-primary">Confirm Booking</button>
+          </form>
+
+          <div class="integration-note">
+            <h4>Professional Integration Status</h4>
+            <p>
+              Real booking sync to provider databases, provider-side confirmation, and SMS/email
+              notifications are possible only via official partner APIs and contracts.
+            </p>
+            <p id="integrationStatusText">
+              Current mode: Discovery + booking request simulation. Provider API connectors pending.
+            </p>
+            <div class="status-checker">
+              <label>
+                Check Booking Status
+                <input id="bookingRefInput" type="text" placeholder="Enter booking reference" />
+              </label>
+              <button id="checkStatusBtn" class="btn btn-ghost" type="button">Check Official Status</button>
+            </div>
+          </div>
+        </div>
+
+        <aside id="assistant" class="assistant-card">
+          <h4>Online Assistance</h4>
+          <p>
+            Need help with slot booking, local transport, accommodation, or temple guidelines?
+            Use Smart Assistant mode.
+          </p>
+          <button id="assistBtn" class="btn btn-assist">Get Guided Plan</button>
+          <div id="assistOutput" class="assist-output"></div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>GlobeTirtha Demo Platform | Geo-Aware Holy + Vacation Booking</p>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
