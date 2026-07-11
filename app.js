@@ -1434,6 +1434,10 @@ const dom = {
   integrationStatusText: document.getElementById("integrationStatusText"),
   bookingRefInput: document.getElementById("bookingRefInput"),
   checkStatusBtn: document.getElementById("checkStatusBtn"),
+  chatLog: document.getElementById("chatLog"),
+  chatChips: document.getElementById("chatChips"),
+  chatForm: document.getElementById("chatForm"),
+  chatInput: document.getElementById("chatInput"),
   detailContent: document.getElementById("detailContent"),
   exploreNow: document.getElementById("exploreNow"),
   quickTirupati: document.getElementById("quickTirupati"),
@@ -1665,6 +1669,170 @@ function selectDestination(id) {
 
 function activeDestination() {
   return destinations.find((d) => d.id === dom.destinationSelect.value) || destinations[0];
+}
+
+/* ============================================================
+   GlobeTirtha Assistant chatbot (rule-based help desk)
+   ============================================================ */
+const CHAT_INTENTS = [
+  {
+    keys: ["hi", "hello", "hey", "namaste", "good morning", "good evening", "start"],
+    reply: () =>
+      "Namaste! 🙏 I'm the GlobeTirtha Assistant. I can help with booking, payments, refunds, timings, travel, stays and temple guidelines. Pick a topic below or type your question.",
+  },
+  {
+    keys: ["book", "booking", "reserve", "slot", "darshan ticket", "how do i book"],
+    reply: () =>
+      "To book: 1) Go to the Book tab, 2) choose your destination and spot, 3) fill your details and dates, 4) submit. You'll get a booking reference instantly and an SMS/email once the provider confirms it. Want me to take you there?",
+    chips: ["Take me to booking", "Payment options", "Check my status"],
+  },
+  {
+    keys: ["pay", "payment", "price", "cost", "fee", "charge", "upi", "card"],
+    reply: () =>
+      "Payments are collected securely after the provider confirms availability. We support UPI, debit/credit cards and net banking. You are only charged once your booking status becomes CONFIRMED — no charge for pending or rejected bookings.",
+    chips: ["Refund policy", "Check my status"],
+  },
+  {
+    keys: ["refund", "cancel", "cancellation", "money back", "reject"],
+    reply: () =>
+      "Refunds: if a booking is REJECTED by the provider, you are refunded automatically within 5–7 working days. To cancel a confirmed booking, contact the Help Desk at least 48 hours before your visit for a partial/full refund per the temple's policy.",
+    chips: ["Talk to Help Desk", "Check my status"],
+  },
+  {
+    keys: ["status", "track", "confirm", "confirmation", "where is my booking", "pending"],
+    reply: () =>
+      "You can check any booking live: paste your booking reference in the 'Check Official Status' box in the Book tab, or open the link we sent by SMS. I'll show ✅ Confirmed, ⏳ Pending or ❌ Rejected with full details.",
+    chips: ["Take me to booking", "Refund policy"],
+  },
+  {
+    keys: ["time", "timing", "hours", "open", "close", "darshan time", "when"],
+    reply: () =>
+      "Timings vary by site. Most temples open early (around 5–6 AM) with a midday break and evening aarti/darshan. Open the Discover tab and select a place — the details card shows the recommended visit window and guidance for that specific spot.",
+    chips: ["Discover places", "Get guided plan"],
+  },
+  {
+    keys: ["transport", "travel", "reach", "bus", "train", "taxi", "how to get", "distance", "route"],
+    reply: () =>
+      "For local transport we suggest options in each destination's guided plan — nearest airport/railway station, cab and shuttle tips. Click 'Get Guided Plan' below for your selected destination and I'll list the travel and stay suggestions.",
+    chips: ["Get guided plan", "Accommodation"],
+  },
+  {
+    keys: ["stay", "hotel", "accommodation", "lodge", "room", "where to stay"],
+    reply: () =>
+      "Each guided plan includes recommended stays near your chosen spot — from dharamshalas and guest houses to hotels. Select a destination and click 'Get Guided Plan' to see accommodation suggestions.",
+    chips: ["Get guided plan", "Discover places"],
+  },
+  {
+    keys: ["dress", "guideline", "rule", "code", "allowed", "etiquette", "prasad", "photography"],
+    reply: () =>
+      "Please dress modestly at holy sites (shoulders and knees covered). Remove footwear before entering shrines, keep silence in prayer halls, and follow local photography rules. Each guided plan lists site-specific do's and don'ts.",
+    chips: ["Get guided plan", "Talk to Help Desk"],
+  },
+  {
+    keys: ["contact", "help desk", "helpdesk", "phone", "call", "email", "human", "support", "agent"],
+    reply: () =>
+      "You can reach our Help Desk 7 AM–10 PM IST:\n📞 1800-123-456\n✉️ support@globetirtha.com\n💬 WhatsApp: wa.me/911800123456\nExpand the 'Talk to a human' box below to tap and connect.",
+    chips: ["Booking help", "Refund policy"],
+  },
+  {
+    keys: ["thanks", "thank you", "great", "awesome", "ok", "cool"],
+    reply: () => "Happy to help! 🙏 Have a blessed and safe journey with GlobeTirtha. Anything else?",
+    chips: ["Booking help", "Discover places"],
+  },
+];
+
+const CHAT_DEFAULT_CHIPS = [
+  "How do I book?",
+  "Check my status",
+  "Refund policy",
+  "Timings",
+  "Talk to Help Desk",
+];
+
+function chatReplyFor(text) {
+  const value = (text || "").toLowerCase();
+  for (const intent of CHAT_INTENTS) {
+    if (intent.keys.some((k) => value.includes(k))) {
+      return { reply: intent.reply(), chips: intent.chips || CHAT_DEFAULT_CHIPS };
+    }
+  }
+  return {
+    reply:
+      "I'm not sure I got that. I can help with booking, payments, refunds, live status, timings, travel, stays and temple guidelines. Try one of the topics below or type a keyword.",
+    chips: CHAT_DEFAULT_CHIPS,
+  };
+}
+
+function appendChatMessage(text, sender) {
+  const bubble = document.createElement("div");
+  bubble.className = `chat-msg ${sender}`;
+  bubble.textContent = text;
+  dom.chatLog.appendChild(bubble);
+  dom.chatLog.scrollTop = dom.chatLog.scrollHeight;
+}
+
+function renderChatChips(chips) {
+  dom.chatChips.innerHTML = "";
+  (chips || CHAT_DEFAULT_CHIPS).forEach((label) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chat-chip";
+    chip.textContent = label;
+    chip.addEventListener("click", () => handleChatInput(label));
+    dom.chatChips.appendChild(chip);
+  });
+}
+
+function botRespond(text) {
+  const typing = document.createElement("div");
+  typing.className = "chat-typing";
+  typing.textContent = "Assistant is typing…";
+  dom.chatLog.appendChild(typing);
+  dom.chatLog.scrollTop = dom.chatLog.scrollHeight;
+
+  window.setTimeout(() => {
+    typing.remove();
+    const { reply, chips } = chatReplyFor(text);
+    appendChatMessage(reply, "bot");
+    renderChatChips(chips);
+
+    const lowered = text.toLowerCase();
+    if (
+      lowered.includes("take me to booking") ||
+      lowered.includes("booking help") ||
+      lowered.includes("how do i book")
+    ) {
+      document.getElementById("book").scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (lowered.includes("discover")) {
+      document.getElementById("discover").scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (lowered.includes("guided plan")) {
+      generateAssistancePlan(activeDestination());
+    } else if (lowered.includes("check my status")) {
+      dom.bookingRefInput.focus();
+      document.getElementById("book").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, 450);
+}
+
+function handleChatInput(text) {
+  const value = (text || "").trim();
+  if (!value) return;
+  appendChatMessage(value, "user");
+  dom.chatInput.value = "";
+  botRespond(value);
+}
+
+function initChatbot() {
+  if (!dom.chatLog) return;
+  appendChatMessage(
+    "Namaste! 🙏 I'm the GlobeTirtha Assistant. Ask me about booking, payments, refunds, live status, timings or temple guidelines.",
+    "bot"
+  );
+  renderChatChips(CHAT_DEFAULT_CHIPS);
+  dom.chatForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    handleChatInput(dom.chatInput.value);
+  });
 }
 
 function generateAssistancePlan(place) {
@@ -2107,6 +2275,7 @@ function init() {
   renderPlaces();
   generateAssistancePlan(initial);
   bindEvents();
+  initChatbot();
   handleBookingLinkParam();
 }
 
