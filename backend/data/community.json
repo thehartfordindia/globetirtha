@@ -1,0 +1,78 @@
+{
+  "reviews": [
+    {
+      "id": "rev-seed000001",
+      "destinationId": "tirupati",
+      "destinationName": "Tirupati (Tirumala)",
+      "author": "Ananya R.",
+      "location": "Hyderabad, India",
+      "rating": 5,
+      "title": "Smooth special darshan",
+      "text": "Booked the special darshan slot in minutes and received an SMS instantly. The whole journey felt calm and well organised.",
+      "createdAt": "2026-06-28T06:30:00.000Z"
+    },
+    {
+      "id": "rev-seed000002",
+      "destinationId": "swiss-alps",
+      "destinationName": "Swiss Alps",
+      "author": "Marcus L.",
+      "location": "London, UK",
+      "rating": 5,
+      "title": "Dream mountain trip",
+      "text": "Jungfraujoch and Zermatt were unforgettable. The suggested stays and package format made planning effortless.",
+      "createdAt": "2026-06-30T10:15:00.000Z"
+    },
+    {
+      "id": "rev-seed000003",
+      "destinationId": "bali",
+      "destinationName": "Bali",
+      "author": "Sara K.",
+      "location": "Dubai, UAE",
+      "rating": 4,
+      "title": "Temples and beaches",
+      "text": "Loved Uluwatu at sunset and Ubud rice terraces. Booking felt trustworthy because payment stayed on hold until confirmation.",
+      "createdAt": "2026-07-02T14:45:00.000Z"
+    },
+    {
+      "id": "rev-seed000004",
+      "destinationId": "amritsar",
+      "destinationName": "Amritsar (Golden Temple)",
+      "author": "Harpreet S.",
+      "location": "Chandigarh, India",
+      "rating": 5,
+      "title": "Peaceful and divine",
+      "text": "The Golden Temple at dawn is beyond words. The langar experience touched my heart. Highly recommend a night visit too.",
+      "createdAt": "2026-07-05T04:20:00.000Z"
+    }
+  ],
+  "places": [
+    {
+      "id": "ugc-seed000001",
+      "name": "Meenakshi Amman Backstreets",
+      "country": "India",
+      "region": "Madurai, Tamil Nadu",
+      "continent": "Asia",
+      "type": "holy",
+      "spotType": "Temple",
+      "note": "The lanes around the temple have incredible flower markets and traditional filter coffee stalls. Go early morning.",
+      "author": "Deepa V.",
+      "lat": 9.9195,
+      "lon": 78.1193,
+      "createdAt": "2026-07-04T05:10:00.000Z"
+    },
+    {
+      "id": "ugc-seed000002",
+      "name": "Hallstatt Lakeside",
+      "country": "Austria",
+      "region": "Salzkammergut",
+      "continent": "Europe",
+      "type": "vacation",
+      "spotType": "Nature",
+      "note": "A fairytale alpine village on a mirror lake. Take the early train before the day crowds arrive.",
+      "author": "Marcus L.",
+      "lat": 47.5622,
+      "lon": 13.6493,
+      "createdAt": "2026-07-06T09:00:00.000Z"
+    }
+  ]
+}
