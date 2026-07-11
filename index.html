@@ -49,7 +49,17 @@
         <a href="#discover">Discover</a>
         <a href="#book">Book</a>
         <a href="#assistant">Assistant</a>
+        <a href="#reviews">Reviews</a>
       </nav>
+      <div class="header-actions">
+        <button id="wishlistBtn" class="icon-btn" type="button" aria-label="View wishlist" title="Your wishlist">
+          <span class="icon-heart">♥</span>
+          <span id="wishlistCount" class="count-badge" hidden>0</span>
+        </button>
+        <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle dark mode" title="Toggle theme">
+          <span class="icon-theme">🌙</span>
+        </button>
+      </div>
     </header>
 
     <main>
@@ -67,6 +77,25 @@
           </div>
         </div>
         <div class="hero-map-glow" aria-hidden="true"></div>
+      </section>
+
+      <section class="stats-bar reveal" aria-label="Platform highlights">
+        <div class="stat">
+          <span class="stat-num" data-count="120" data-suffix="+">0</span>
+          <span class="stat-label">Sacred & Scenic Destinations</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-count="45" data-suffix="+">0</span>
+          <span class="stat-label">Countries Covered</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-count="98" data-suffix="%">0</span>
+          <span class="stat-label">Travellers Satisfied</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" data-count="24" data-suffix="/7">0</span>
+          <span class="stat-label">Guided Assistance</span>
+        </div>
       </section>
 
       <section id="discover" class="panel">
@@ -240,11 +269,90 @@
           <div id="assistOutput" class="assist-output"></div>
         </aside>
       </section>
+
+      <section id="why" class="panel reveal">
+        <div class="panel-head">
+          <h3>Why Travellers Choose GlobeTirtha</h3>
+          <p>Everything you need for a smooth, soulful journey — in one intelligent platform.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-ico">🧭</span>
+            <h4>Geo-Smart Discovery</h4>
+            <p>Find temples, churches, mosques, and getaways near you with live location search.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-ico">⚡</span>
+            <h4>Instant Booking</h4>
+            <p>Reserve in seconds with real-time confirmation and SMS updates on your phone.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-ico">🛡️</span>
+            <h4>Secure & Protected</h4>
+            <p>Payment held safely until your provider confirms — never pay for an unconfirmed slot.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-ico">🤝</span>
+            <h4>Guided Assistance</h4>
+            <p>Darshan tips, routes, dress codes, and stays — personal help at every step.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="reviews" class="panel reveal">
+        <div class="panel-head">
+          <h3>Loved by Pilgrims & Travellers</h3>
+          <p>Real experiences from journeys planned with GlobeTirtha.</p>
+        </div>
+        <div class="testimonial-grid">
+          <figure class="testimonial-card">
+            <div class="stars">★★★★★</div>
+            <blockquote>Booked Tirupati special darshan in minutes and got the SMS instantly. Felt completely stress-free.</blockquote>
+            <figcaption><span class="avatar">A</span> Ananya R. · Hyderabad</figcaption>
+          </figure>
+          <figure class="testimonial-card">
+            <div class="stars">★★★★★</div>
+            <blockquote>The live location search found a beautiful temple I never knew was nearby. Brilliant idea.</blockquote>
+            <figcaption><span class="avatar">M</span> Marcus L. · London</figcaption>
+          </figure>
+          <figure class="testimonial-card">
+            <div class="stars">★★★★★</div>
+            <blockquote>Loved that my payment stayed on hold until the provider confirmed. That trust matters.</blockquote>
+            <figcaption><span class="avatar">S</span> Sara K. · Dubai</figcaption>
+          </figure>
+        </div>
+      </section>
     </main>
+
+    <section class="newsletter reveal" aria-label="Newsletter signup">
+      <div class="newsletter-inner">
+        <div>
+          <h3>Get travel & darshan deals in your inbox</h3>
+          <p>Seasonal pilgrimage windows, curated getaways, and early-access slots.</p>
+        </div>
+        <form id="newsletterForm" class="newsletter-form">
+          <input id="newsletterEmail" type="email" placeholder="you@example.com" required aria-label="Email address" />
+          <button type="submit" class="btn btn-primary">Subscribe</button>
+        </form>
+      </div>
+    </section>
 
     <footer class="site-footer">
       <p>GlobeTirtha Demo Platform | Geo-Aware Holy + Vacation Booking</p>
     </footer>
+
+    <button id="backToTop" class="back-to-top" type="button" aria-label="Back to top" hidden>↑</button>
+
+    <div id="wishlistDrawer" class="wishlist-drawer" hidden aria-label="Wishlist">
+      <div class="wishlist-head">
+        <h4>Your Wishlist</h4>
+        <button id="closeWishlist" class="icon-btn" type="button" aria-label="Close wishlist">✕</button>
+      </div>
+      <div id="wishlistItems" class="wishlist-items"></div>
+    </div>
+    <div id="wishlistBackdrop" class="wishlist-backdrop" hidden></div>
+
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
     <script src="app.js" defer></script>
   </body>
