@@ -138,6 +138,10 @@ function buildCustomerMessage(payload) {
         );
 }
 
+function buildSmsMessage(payload) {
+    return `GlobeTirtha ${payload.bookingId}: ${payload.status}.`;
+}
+
 async function sendViaSendGrid(notification, payload) {
     const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
           method: "POST",
@@ -218,7 +222,7 @@ async function dispatchNotificationsForBooking(booking) {
                   channel: notification.channel,
                   recipient: notification.recipient,
                   customerName: booking.customer?.name || "Customer",
-                  message: buildCustomerMessage(payloadBase),
+                  message: notification.channel === "sms" ? buildSmsMessage(payloadBase) : buildCustomerMessage(payloadBase),
           });
     }
     return booking;
