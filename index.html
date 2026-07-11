@@ -289,10 +289,41 @@
         <aside id="assistant" class="assistant-card">
           <h4>Online Assistance</h4>
           <p>
-            Need help with slot booking, local transport, accommodation, or temple guidelines?
-            Use Smart Assistant mode.
+            Chat with the GlobeTirtha Assistant for instant help, or get a guided plan for your
+            selected destination.
           </p>
-          <button id="assistBtn" class="btn btn-assist">Get Guided Plan</button>
+
+          <div class="chatbot" id="chatbot">
+            <div class="chatbot-head">
+              <span class="chatbot-avatar" aria-hidden="true">🧭</span>
+              <div class="chatbot-id">
+                <strong>GlobeTirtha Assistant</strong>
+                <span class="chatbot-status">● Online • replies instantly</span>
+              </div>
+            </div>
+            <div class="chatbot-log" id="chatLog" aria-live="polite"></div>
+            <div class="chatbot-chips" id="chatChips"></div>
+            <form class="chatbot-input" id="chatForm" autocomplete="off">
+              <input
+                id="chatInput"
+                type="text"
+                placeholder="Ask about booking, refunds, timings…"
+                aria-label="Ask the assistant"
+              />
+              <button type="submit" class="btn btn-assist">Send</button>
+            </form>
+          </div>
+
+          <details class="helpdesk">
+            <summary>📞 Talk to a human — Help Desk</summary>
+            <ul class="helpdesk-list">
+              <li>Phone: <a href="tel:+911800123456">1800-123-456</a> <span>(7 AM – 10 PM IST)</span></li>
+              <li>Email: <a href="mailto:support@globetirtha.com">support@globetirtha.com</a></li>
+              <li>WhatsApp: <a href="https://wa.me/911800123456" target="_blank" rel="noopener">Chat on WhatsApp</a></li>
+            </ul>
+          </details>
+
+          <button id="assistBtn" class="btn btn-assist assist-plan-btn">Get Guided Plan</button>
           <div id="assistOutput" class="assist-output"></div>
         </aside>
       </section>
