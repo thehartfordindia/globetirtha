@@ -558,18 +558,22 @@ textarea {
   gap: 0.5rem;
   padding: 0.75rem;
   border-top: 1px solid #e3efeb;
+  align-items: stretch;
 }
 
 .chatbot-input input {
   flex: 1;
   border: 1px solid #c4d8d1;
   border-radius: 10px;
-  padding: 0.7rem 0.85rem;
-  font-size: 0.95rem;
+  padding: 0.9rem 1rem;
+  font-size: 1rem;
+  min-height: 54px;
 }
 
 .chatbot-input .btn {
-  padding: 0.7rem 1.1rem;
+  padding: 0.7rem 1.3rem;
+  min-height: 54px;
+  font-size: 1rem;
 }
 
 .chat-typing {
