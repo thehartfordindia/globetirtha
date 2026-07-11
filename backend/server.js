@@ -511,9 +511,9 @@ const server = http.createServer(async (req, res) => {
     const pathname = (req.url || "/").split("?")[0];
     if (req.method === "GET" && pathname === "/admin") return sendText(res, 200, ADMIN_HTML, "text/html; charset=utf-8");
     if (req.method === "GET" && (pathname === "/" || pathname === "/app")) return sendHtmlFile(res, path.join(APP_ROOT, "index.html"));
-    if (req.method === "GET" && req.url === "/styles.css") return sendFile(res, path.join(APP_ROOT, "styles.css"));
-    if (req.method === "GET" && req.url === "/app.js") return sendFile(res, path.join(APP_ROOT, "app.js"));
-    if (req.method === "GET" && req.url === "/googleeb15c89d223d87ec.html") return sendText(res, 200, "google-site-verification: googleeb15c89d223d87ec.html", "text/html; charset=utf-8");
+    if (req.method === "GET" && pathname === "/styles.css") return sendFile(res, path.join(APP_ROOT, "styles.css"));
+    if (req.method === "GET" && pathname === "/app.js") return sendFile(res, path.join(APP_ROOT, "app.js"));
+    if (req.method === "GET" && pathname === "/googleeb15c89d223d87ec.html") return sendText(res, 200, "google-site-verification: googleeb15c89d223d87ec.html", "text/html; charset=utf-8");
     if (req.method === "GET" && req.url === "/robots.txt") return sendText(res, 200, `User-agent: *\nAllow: /\nSitemap: ${WEBSITE_URL}/sitemap.xml\n`, "text/plain; charset=utf-8");
     if (req.method === "GET" && req.url === "/sitemap.xml") return sendText(res, 200, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${WEBSITE_URL}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n  <url><loc>${WEBSITE_URL}/#community</loc><changefreq>daily</changefreq><priority>0.8</priority></url>\n  <url><loc>${WEBSITE_URL}/#destinations</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n</urlset>\n`, "application/xml; charset=utf-8");
     if (req.method === "GET" && req.url === "/site.webmanifest") return sendJson(res, 200, { name: "GlobeTirtha", short_name: "GlobeTirtha", start_url: "/", display: "standalone", background_color: "#f3f7f6", theme_color: "#0b6f53", description: "Holy place and vacation booking website with global geo discovery." });
