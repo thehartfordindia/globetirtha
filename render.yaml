@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: globetirtha
+    runtime: node
+    plan: free
+    buildCommand: "echo No build required"
+    startCommand: "npm start"
+    healthCheckPath: "/api/health"
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: WEBSITE_URL
+        sync: false
+      - key: WEBHOOK_SECRET
+        generateValue: true
