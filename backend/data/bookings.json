@@ -1,0 +1,197 @@
+[
+  {
+    "id": "GB-1783760750968-92D336",
+    "status": "PENDING_PARTNER_CONFIRMATION",
+    "createdAt": "2026-07-11T09:05:50.968Z",
+    "destinationId": "tirupati",
+    "destinationName": "Tirupati Pilgrimage Hub",
+    "spot": "Sri Venkateswara Temple",
+    "date": "2026-08-15",
+    "purpose": "pilgrimage",
+    "customer": {
+      "name": "A Test User",
+      "email": "test@example.com",
+      "phone": "+447111111111"
+    },
+    "notes": "",
+    "source": "catalog",
+    "providerReference": null
+  },
+  {
+    "id": "GB-1783761134447-71B484",
+    "status": "PENDING_PARTNER_CONFIRMATION",
+    "createdAt": "2026-07-11T09:12:14.447Z",
+    "destinationId": "live-1331135",
+    "destinationName": "Sabarimala Temple",
+    "spot": "Sabarimala Temple",
+    "date": "2026-09-20",
+    "purpose": "pilgrimage",
+    "accommodationNights": 2,
+    "customer": {
+      "name": "Kerala Pilgrim",
+      "email": "kerala.pilgrim@example.com",
+      "phone": "+919900001234"
+    },
+    "notes": "",
+    "source": "live",
+    "providerReference": null,
+    "components": [
+      {
+        "type": "spot",
+        "label": "Sabarimala Temple",
+        "status": "PENDING_PROVIDER",
+        "maxWaitMinutes": 20
+      },
+      {
+        "type": "accommodation",
+        "label": "2 night(s) accommodation",
+        "status": "PENDING_PROVIDER",
+        "maxWaitMinutes": 15
+      }
+    ],
+    "sla": {
+      "checkEverySeconds": 30,
+      "globalMaxWaitMinutes": 20,
+      "spotMaxWaitMinutes": 20,
+      "stayMaxWaitMinutes": 15,
+      "userMessage": "Most providers confirm in a few minutes; if delayed beyond SLA, booking is escalated for support/rebook/refund."
+    },
+    "nextAction": "Continue provider polling/webhook wait and keep user informed.",
+    "elapsedMinutes": 0,
+    "etaMinutesRemaining": 20,
+    "updatedAt": "2026-07-11T09:13:00.448Z",
+    "paymentStatus": "AUTHORIZED_HOLD"
+  },
+  {
+    "id": "GB-1783762290666-BCEE93",
+    "status": "PENDING_PARTNER_CONFIRMATION",
+    "createdAt": "2026-07-11T09:31:30.666Z",
+    "destinationId": "tirupati",
+    "destinationName": "Tirupati Pilgrimage Hub",
+    "spot": "Sri Venkateswara Temple",
+    "date": "2026-10-22",
+    "purpose": "pilgrimage",
+    "accommodationNights": 2,
+    "customer": {
+      "name": "Aron Reddy",
+      "email": "thehartfordindia@gmail.com",
+      "phone": "7816023124"
+    },
+    "notes": "We are 6 people coming for this temple so pleae book accomodation.",
+    "source": "catalog",
+    "providerReference": null,
+    "paymentStatus": "AUTHORIZED_HOLD",
+    "paymentPolicy": {
+      "holdUntilStatus": [
+        "CONFIRMED_BY_PROVIDER",
+        "REJECTED_BY_PROVIDER",
+        "ESCALATED_MANUAL_REVIEW"
+      ],
+      "captureOn": "CONFIRMED_BY_PROVIDER",
+      "refundOn": [
+        "REJECTED_BY_PROVIDER"
+      ]
+    },
+    "components": [
+      {
+        "type": "spot",
+        "label": "Sri Venkateswara Temple",
+        "status": "PENDING_PROVIDER",
+        "maxWaitMinutes": 20
+      },
+      {
+        "type": "accommodation",
+        "label": "2 night(s) accommodation",
+        "status": "PENDING_PROVIDER",
+        "maxWaitMinutes": 15
+      }
+    ],
+    "sla": {
+      "checkEverySeconds": 30,
+      "globalMaxWaitMinutes": 20,
+      "spotMaxWaitMinutes": 20,
+      "stayMaxWaitMinutes": 15,
+      "userMessage": "Most providers confirm in a few minutes; if delayed beyond SLA, booking is escalated for support/rebook/refund."
+    },
+    "nextAction": "Continue provider polling/webhook wait and keep user informed.",
+    "elapsedMinutes": 0,
+    "etaMinutesRemaining": 20,
+    "updatedAt": "2026-07-11T09:31:30.669Z"
+  },
+  {
+    "id": "GB-1783762787094-93ABA3",
+    "status": "PENDING_PARTNER_CONFIRMATION",
+    "createdAt": "2026-07-11T09:39:47.095Z",
+    "destinationId": "tirupati",
+    "destinationName": "Tirupati Pilgrimage Hub",
+    "spot": "Sri Venkateswara Temple",
+    "date": "2026-08-20",
+    "purpose": "pilgrimage",
+    "accommodationNights": 2,
+    "customer": {
+      "email": "notify@example.com",
+      "name": "Notify Test",
+      "phone": "+919911112222"
+    },
+    "notes": "notification test",
+    "source": "catalog",
+    "providerReference": null,
+    "paymentStatus": "AUTHORIZED_HOLD",
+    "paymentPolicy": {
+      "holdUntilStatus": [
+        "CONFIRMED_BY_PROVIDER",
+        "REJECTED_BY_PROVIDER",
+        "ESCALATED_MANUAL_REVIEW"
+      ],
+      "captureOn": "CONFIRMED_BY_PROVIDER",
+      "refundOn": [
+        "REJECTED_BY_PROVIDER"
+      ]
+    },
+    "components": [
+      {
+        "type": "spot",
+        "label": "Sri Venkateswara Temple",
+        "status": "PENDING_PROVIDER",
+        "maxWaitMinutes": 20
+      },
+      {
+        "type": "accommodation",
+        "label": "2 night(s) accommodation",
+        "status": "PENDING_PROVIDER",
+        "maxWaitMinutes": 15
+      }
+    ],
+    "sla": {
+      "checkEverySeconds": 30,
+      "globalMaxWaitMinutes": 20,
+      "spotMaxWaitMinutes": 20,
+      "stayMaxWaitMinutes": 15,
+      "userMessage": "Most providers confirm in a few minutes; if delayed beyond SLA, booking is escalated for support/rebook/refund."
+    },
+    "notifications": [
+      {
+        "channel": "email",
+        "recipient": "notify@example.com",
+        "status": "NOT_CONFIGURED",
+        "lastAttemptAt": null,
+        "deliveredAt": null,
+        "detail": "No EMAIL provider configured on the server.",
+        "bookingId": "GB-1783762787094-93ABA3"
+      },
+      {
+        "channel": "sms",
+        "recipient": "+919911112222",
+        "status": "NOT_CONFIGURED",
+        "lastAttemptAt": null,
+        "deliveredAt": null,
+        "detail": "No SMS provider configured on the server.",
+        "bookingId": "GB-1783762787094-93ABA3"
+      }
+    ],
+    "nextAction": "Continue provider polling/webhook wait and keep user informed.",
+    "elapsedMinutes": 0,
+    "etaMinutesRemaining": 20,
+    "updatedAt": "2026-07-11T09:39:47.095Z"
+  }
+]
