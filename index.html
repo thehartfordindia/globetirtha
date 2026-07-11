@@ -307,11 +307,17 @@
         </div>
 
         <div class="community-stats">
-          <div class="cstat"><span id="statReviews" class="cstat-num">0</span><span class="cstat-label">Reviews shared</span></div>
-          <div class="cstat"><span id="statAvgRating" class="cstat-num">0.0</span><span class="cstat-label">Average rating</span></div>
-          <div class="cstat"><span id="statContributors" class="cstat-num">0</span><span class="cstat-label">Contributors</span></div>
-          <div class="cstat"><span id="statUserPlaces" class="cstat-num">0</span><span class="cstat-label">Places added</span></div>
+          <div class="cstat cstat-a"><span class="cstat-ico">✍</span><span id="statReviews" class="cstat-num">0</span><span class="cstat-label">Reviews shared</span></div>
+          <div class="cstat cstat-b"><span class="cstat-ico">★</span><span id="statAvgRating" class="cstat-num">0.0</span><span class="cstat-label">Average rating</span></div>
+          <div class="cstat cstat-c"><span class="cstat-ico">◍</span><span id="statContributors" class="cstat-num">0</span><span class="cstat-label">Contributors</span></div>
+          <div class="cstat cstat-d"><span class="cstat-ico">✚</span><span id="statUserPlaces" class="cstat-num">0</span><span class="cstat-label">Places added</span></div>
         </div>
+
+        <div class="community-feed-head trending-head">
+          <h4>🔥 Trending now — most-loved destinations</h4>
+          <p class="muted">Ranked by real traveller reviews and ratings.</p>
+        </div>
+        <div id="communityTrending" class="trending-row"></div>
 
         <div class="community-forms">
           <form id="reviewForm" class="community-form">
@@ -401,8 +407,16 @@
           </form>
         </div>
 
-        <div class="community-feed-head">
+        <div class="community-feed-head feed-head-row">
           <h4>Recent traveller reviews</h4>
+          <div class="feed-sort">
+            <label for="reviewSort">Sort by</label>
+            <select id="reviewSort">
+              <option value="newest">Newest</option>
+              <option value="highest">Highest rated</option>
+              <option value="lowest">Lowest rated</option>
+            </select>
+          </div>
         </div>
         <div id="communityFeed" class="community-feed"></div>
 
