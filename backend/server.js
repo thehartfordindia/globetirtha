@@ -18,6 +18,7 @@ const EMAIL_FROM = process.env.EMAIL_FROM || "";
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "";
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "";
 const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER || "";
+const NOTIFY_TIMEOUT_MS = Number(process.env.NOTIFY_TIMEOUT_MS || 8000);
 
 const STATUS = {
     pending: "PENDING_PARTNER_CONFIRMATION",
@@ -152,6 +153,7 @@ async function sendViaSendGrid(notification, payload) {
                   subject: `GlobeTirtha Booking Received — ${payload.bookingId}`,
                   content: [{ type: "text/plain", value: payload.message }],
           }),
+          signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`SendGrid returned HTTP ${res.status}`);
 }
@@ -164,6 +166,7 @@ async function sendViaTwilio(notification, payload) {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: `Basic ${basic}` },
           body: form,
+          signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Twilio returned HTTP ${res.status}`);
 }
@@ -174,6 +177,7 @@ async function sendViaWebhook(notification, payload) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Webhook gateway returned HTTP ${res.status}`);
 }
@@ -226,6 +230,25 @@ async function dispatchNotificationsForBooking(booking) {
           });
     }
     return booking;
+}
+
+function persistBookingNotifications(booking) {
+    try {
+          const all = readBookings();
+          const index = all.findIndex((item) => item.id === booking.id);
+          if (index >= 0) {
+                  all[index].notifications = booking.notifications;
+                  writeBookings(all);
+          }
+    } catch (_error) {
+          // Background persistence failure is non-fatal; status remains PENDING_SEND until retried.
+    }
+}
+
+function dispatchNotificationsInBackground(booking) {
+    dispatchNotificationsForBooking(booking)
+          .then(() => persistBookingNotifications(booking))
+          .catch(() => {});
 }
 
 function minutesBetween(fromIso, toDate) {
@@ -315,9 +338,9 @@ const server = http.createServer(async (req, res) => {
                                                            buildNotification("sms", payload.customer?.phone || "", booking),
                                                          ];
                                                  evaluateBookingLifecycle(booking);
-                                                 await dispatchNotificationsForBooking(booking);
                                                  bookings.push(booking);
                                                  writeBookings(bookings);
+                                                 dispatchNotificationsInBackground(booking);
                                                  return sendJson(res, 201, booking);
                                          } catch (_error) {
                                                  return sendJson(res, 400, { error: "Invalid booking payload" });
