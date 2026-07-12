@@ -22,6 +22,32 @@ const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "";
 const TWILIO_FROM_NUMBER = process.env.TWILIO_FROM_NUMBER || "";
 const NOTIFY_TIMEOUT_MS = Number(process.env.NOTIFY_TIMEOUT_MS || 8000);
 
+// Vendor onboarding: external partners (e.g. airport kiosks) create bookings with their own API key.
+// Config via env VENDOR_KEYS as "key1:vendorId1:Vendor Name 1,key2:vendorId2:Vendor Name 2".
+// If VENDORS_REQUIRED=true, POST /api/bookings requires a valid vendor key (locks the API down).
+function parseVendorKeys(raw) {
+    const map = new Map();
+    (raw || "")
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+          .forEach((entry) => {
+                  const [key, id, ...nameParts] = entry.split(":");
+                  if (key && id) map.set(key.trim(), { id: id.trim(), name: (nameParts.join(":").trim() || id.trim()) });
+          });
+    return map;
+}
+const VENDOR_KEYS = parseVendorKeys(process.env.VENDOR_KEYS);
+const VENDORS_REQUIRED = String(process.env.VENDORS_REQUIRED || "").toLowerCase() === "true";
+
+function identifyVendor(req) {
+    const key = req.headers["x-vendor-key"];
+    if (!key) return { ok: !VENDORS_REQUIRED, vendor: null, provided: false };
+    const vendor = VENDOR_KEYS.get(String(key));
+    if (!vendor) return { ok: false, vendor: null, provided: true };
+    return { ok: true, vendor, provided: true };
+}
+
 const STATUS = {
     pending: "PENDING_PARTNER_CONFIRMATION",
     confirmed: "CONFIRMED_BY_PROVIDER",
@@ -431,6 +457,7 @@ const ADMIN_HTML = `<!doctype html>
 <main>
   <div class="bar">
     <input id="secret" type="password" placeholder="Webhook secret (x-webhook-secret)" autocomplete="off" />
+    <select id="vendorFilter" title="Filter by sales channel"><option value="">All channels</option><option value="web">Web (direct)</option></select>
     <button class="btn-primary" id="load">Load bookings</button>
     <button class="btn-primary" id="refresh" title="Reload list">↻</button>
   </div>
@@ -455,10 +482,30 @@ const ADMIN_HTML = `<!doctype html>
     var secret = secretEl.value.trim();
     if (!secret) { setMsg("Enter the webhook secret first.", true); return; }
     setMsg("Loading...", false);
-    fetch("/api/admin/bookings", { headers: { "x-webhook-secret": secret } })
+    loadVendors(secret);
+    var vendor = document.getElementById("vendorFilter").value;
+    var url = "/api/admin/bookings" + (vendor ? "?vendor=" + encodeURIComponent(vendor) : "");
+    fetch(url, { headers: { "x-webhook-secret": secret } })
       .then(function(r){ if (r.status === 401) throw new Error("Wrong secret (401)."); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function(items){ render(items); setMsg(items.length + " booking(s) loaded.", false); })
       .catch(function(e){ setMsg(e.message, true); listEl.innerHTML = ""; });
+  }
+
+  var vendorsLoaded = false;
+  function loadVendors(secret) {
+    if (vendorsLoaded) return;
+    fetch("/api/admin/vendors", { headers: { "x-webhook-secret": secret } })
+      .then(function(r){ return r.ok ? r.json() : []; })
+      .then(function(list){
+        vendorsLoaded = true;
+        var sel = document.getElementById("vendorFilter");
+        list.forEach(function(v){
+          var opt = document.createElement("option");
+          opt.value = v.id; opt.textContent = v.name;
+          sel.appendChild(opt);
+        });
+      })
+      .catch(function(){});
   }
 
   function confirmComponent(bookingId, componentId, newStatus) {
@@ -484,6 +531,7 @@ const ADMIN_HTML = `<!doctype html>
       html += '<div class="meta">ID: ' + esc(b.id) + ' · ' + esc(b.date || "") + ' · ' + esc(b.purpose || "") + '</div>';
       html += '<div class="meta">Customer: ' + esc((b.customer && b.customer.name) || "-") + ' · ' + esc((b.customer && b.customer.phone) || "-") + '</div>';
       if (b.travelerCount) html += '<div class="meta">Travelers: ' + esc(b.travelerCount) + '</div>';
+      html += '<div class="meta">Sold via: <strong>' + esc(b.vendorName || (b.channel || "web:direct")) + '</strong></div>';
       html += '<div class="meta">Booking status: <span class="pill ' + statusClass(b.status) + '">' + esc(b.status) + '</span> · Payment: ' + esc(b.paymentStatus || "-") + '</div>';
       (b.components || []).forEach(function(c){
         var done = c.status === "CONFIRMED_BY_PROVIDER" || c.status === "REJECTED_BY_PROVIDER";
@@ -502,6 +550,7 @@ const ADMIN_HTML = `<!doctype html>
 
   document.getElementById("load").addEventListener("click", loadBookings);
   document.getElementById("refresh").addEventListener("click", loadBookings);
+  document.getElementById("vendorFilter").addEventListener("change", loadBookings);
   secretEl.addEventListener("keydown", function(e){ if (e.key === "Enter") loadBookings(); });
 </script>
 </body>
@@ -590,15 +639,26 @@ const server = http.createServer(async (req, res) => {
           }
     }
 
-    if (req.method === "GET" && req.url === "/api/admin/bookings") {
+    if (req.method === "GET" && pathname === "/api/admin/vendors") {
+          if (req.headers["x-webhook-secret"] !== WEBHOOK_SECRET) return sendJson(res, 401, { error: "Unauthorized" });
+          return sendJson(res, 200, [...VENDOR_KEYS.values()].map((v) => ({ id: v.id, name: v.name })));
+    }
+
+    if (req.method === "GET" && pathname === "/api/admin/bookings") {
           if (req.headers["x-webhook-secret"] !== WEBHOOK_SECRET) return sendJson(res, 401, { error: "Unauthorized" });
           const bookings = (await store.getBookings()).map((b) => evaluateBookingLifecycle(b));
           await store.saveBookings(bookings);
-          return sendJson(res, 200, bookings);
+          const vendorFilter = new URLSearchParams((req.url.split("?")[1] || "")).get("vendor");
+          const result = vendorFilter
+                  ? bookings.filter((b) => (vendorFilter === "web" ? !b.vendorId : b.vendorId === vendorFilter))
+                  : bookings;
+          return sendJson(res, 200, result);
     }
 
                                    if (req.method === "POST" && req.url === "/api/bookings") {
                                          try {
+                                                 const vendorAuth = identifyVendor(req);
+                                                 if (!vendorAuth.ok) return sendJson(res, 401, { error: "Invalid or missing vendor API key" });
                                                  const payload = await parseJsonBody(req);
                                                  const itinerary = Array.isArray(payload.itinerary) && payload.itinerary.length ? payload.itinerary : null;
                                                  let components = [];
@@ -630,6 +690,9 @@ const server = http.createServer(async (req, res) => {
                                                            spot: payload.spot, date: payload.date, purpose: payload.purpose, accommodationNights,
                                                            itinerary, travelers, travelerCount: travelers ? travelers.length : Number(payload.travelerCount || 1),
                                                            customer: payload.customer, notes: payload.notes, source: payload.source,
+                                                           vendorId: vendorAuth.vendor ? vendorAuth.vendor.id : null,
+                                                           vendorName: vendorAuth.vendor ? vendorAuth.vendor.name : null,
+                                                           channel: vendorAuth.vendor ? `vendor:${vendorAuth.vendor.id}` : (payload.source === "trip-planner" ? "web:trip-planner" : "web:direct"),
                                                            providerReference: null, paymentStatus: "AUTHORIZED_HOLD",
                                                            paymentPolicy: { holdUntilStatus: [STATUS.confirmed, STATUS.rejected, STATUS.escalated], captureOn: STATUS.confirmed, refundOn: [STATUS.rejected] },
                                                            components,
