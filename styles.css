@@ -630,6 +630,129 @@ textarea {
   margin-top: 0.9rem;
 }
 
+/* Multi-stop trip planner */
+.trip-planner {
+  margin-top: 1.4rem;
+  border: 1px solid #cfdfd9;
+  border-radius: 16px;
+  background: linear-gradient(160deg, #f4faf8, #eef6f3);
+  padding: 1.1rem;
+}
+
+.trip-planner-head h4 {
+  margin: 0 0 0.3rem;
+  font-size: 1.05rem;
+}
+
+.trip-planner-head p {
+  margin: 0 0 0.9rem;
+  font-size: 0.88rem;
+  color: #4d5f59;
+  line-height: 1.5;
+}
+
+.trip-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.9rem 0;
+}
+
+.trip-stop {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  background: #ffffff;
+  border: 1px solid #d4e6df;
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+}
+
+.trip-stop-num {
+  flex: 0 0 auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.trip-stop-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.trip-stop-body strong {
+  display: block;
+  font-size: 0.95rem;
+  color: #1c2b27;
+}
+
+.trip-stop-body span {
+  font-size: 0.82rem;
+  color: #5c6b66;
+}
+
+.trip-stop-remove {
+  flex: 0 0 auto;
+  border: none;
+  background: #fadad7;
+  color: #b3261e;
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trip-stop-remove:hover {
+  background: #f5c2bd;
+}
+
+.trip-summary {
+  font-size: 0.9rem;
+  color: #0d7a70;
+  font-weight: 600;
+  min-height: 1.2rem;
+  margin-bottom: 0.6rem;
+}
+
+.trip-planner .trip-book-btn {
+  width: 100%;
+}
+
+.trip-planner .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trip-empty {
+  font-size: 0.85rem;
+  color: #7a8b85;
+  font-style: italic;
+}
+
+[data-theme="dark"] .trip-planner {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .trip-planner-head p {
+  color: #b9c7c2;
+}
+[data-theme="dark"] .trip-stop {
+  background: var(--surface);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+[data-theme="dark"] .trip-stop-body strong {
+  color: #e6efec;
+}
+[data-theme="dark"] .trip-stop-body span {
+  color: #a7b6b1;
+}
+
 .site-footer {
   text-align: center;
   color: #4d5f59;
