@@ -461,13 +461,13 @@ const ADMIN_HTML = `<!doctype html>
       .catch(function(e){ setMsg(e.message, true); listEl.innerHTML = ""; });
   }
 
-  function confirmComponent(bookingId, componentType, newStatus) {
+  function confirmComponent(bookingId, componentId, newStatus) {
     var secret = secretEl.value.trim();
-    setMsg("Sending " + newStatus + " for " + componentType + "...", false);
+    setMsg("Sending " + newStatus + " for " + componentId + "...", false);
     fetch("/api/provider-webhook", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-webhook-secret": secret },
-      body: JSON.stringify({ bookingId: bookingId, componentType: componentType, status: newStatus, providerReference: "OPS-" + Date.now() })
+      body: JSON.stringify({ bookingId: bookingId, componentId: componentId, status: newStatus, providerReference: "OPS-" + Date.now() })
     })
       .then(function(r){ if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function(){ setMsg("Updated. Reloading...", false); loadBookings(); })
@@ -483,14 +483,15 @@ const ADMIN_HTML = `<!doctype html>
       html += '<h3>' + esc(b.destinationName || b.destinationId || "Booking") + ' — ' + esc(b.spot || "") + '</h3>';
       html += '<div class="meta">ID: ' + esc(b.id) + ' · ' + esc(b.date || "") + ' · ' + esc(b.purpose || "") + '</div>';
       html += '<div class="meta">Customer: ' + esc((b.customer && b.customer.name) || "-") + ' · ' + esc((b.customer && b.customer.phone) || "-") + '</div>';
+      if (b.travelerCount) html += '<div class="meta">Travelers: ' + esc(b.travelerCount) + '</div>';
       html += '<div class="meta">Booking status: <span class="pill ' + statusClass(b.status) + '">' + esc(b.status) + '</span> · Payment: ' + esc(b.paymentStatus || "-") + '</div>';
       (b.components || []).forEach(function(c){
         var done = c.status === "CONFIRMED_BY_PROVIDER" || c.status === "REJECTED_BY_PROVIDER";
         html += '<div class="comp">';
-        html += '<span class="label">' + esc(c.label || c.type) + ' <span class="pill ' + statusClass(c.status) + '">' + esc(c.status) + '</span></span>';
+        html += '<span class="label">' + (c.location ? esc(c.location) + ' · ' : '') + esc(c.label || c.type) + ' <span class="pill ' + statusClass(c.status) + '">' + esc(c.status) + '</span></span>';
         if (!done) {
-          html += '<button class="btn-confirm" onclick="confirmComponent(\\'' + esc(b.id) + '\\',\\'' + esc(c.type) + '\\',\\'CONFIRMED_BY_PROVIDER\\')">Confirm</button>';
-          html += '<button class="btn-reject" onclick="confirmComponent(\\'' + esc(b.id) + '\\',\\'' + esc(c.type) + '\\',\\'REJECTED_BY_PROVIDER\\')">Reject</button>';
+          html += '<button class="btn-confirm" onclick="confirmComponent(\\'' + esc(b.id) + '\\',\\'' + esc(c.id) + '\\',\\'CONFIRMED_BY_PROVIDER\\')">Confirm</button>';
+          html += '<button class="btn-reject" onclick="confirmComponent(\\'' + esc(b.id) + '\\',\\'' + esc(c.id) + '\\',\\'REJECTED_BY_PROVIDER\\')">Reject</button>';
         }
         html += '</div>';
       });
@@ -599,19 +600,39 @@ const server = http.createServer(async (req, res) => {
                                    if (req.method === "POST" && req.url === "/api/bookings") {
                                          try {
                                                  const payload = await parseJsonBody(req);
-                                                 const accommodationNights = Number(payload.accommodationNights || 0);
+                                                 const itinerary = Array.isArray(payload.itinerary) && payload.itinerary.length ? payload.itinerary : null;
+                                                 let components = [];
+                                                 let accommodationNights = 0;
+
+                                                 if (itinerary) {
+                                                           itinerary.forEach((stop, i) => {
+                                                                     const nights = Number(stop.accommodationNights || 0);
+                                                                     accommodationNights += nights;
+                                                                     const stopSla = getSlaPolicy(stop.purpose || payload.purpose, nights);
+                                                                     const stopName = stop.destinationName || `Stop ${i + 1}`;
+                                                                     components.push({ id: `C${i + 1}S`, type: "spot", location: stopName, label: `${stop.spot || stopName} — entry/darshan`, status: "PENDING_PROVIDER", maxWaitMinutes: stopSla.spotMaxWaitMinutes });
+                                                                     if (nights > 0) components.push({ id: `C${i + 1}A`, type: "accommodation", location: stopName, label: `${nights} night(s) stay in ${stopName}`, status: "PENDING_PROVIDER", maxWaitMinutes: stopSla.stayMaxWaitMinutes });
+                                                           });
+                                                 } else {
+                                                           accommodationNights = Number(payload.accommodationNights || 0);
+                                                           const sla0 = getSlaPolicy(payload.purpose, accommodationNights);
+                                                           components = [
+                                                             { id: "C1S", type: "spot", location: payload.destinationName, label: payload.spot || "Destination Slot", status: "PENDING_PROVIDER", maxWaitMinutes: sla0.spotMaxWaitMinutes },
+                                                             ...(accommodationNights > 0 ? [{ id: "C1A", type: "accommodation", location: payload.destinationName, label: `${accommodationNights} night(s) accommodation`, status: "PENDING_PROVIDER", maxWaitMinutes: sla0.stayMaxWaitMinutes }] : []),
+                                                           ];
+                                                 }
+
                                                  const sla = getSlaPolicy(payload.purpose, accommodationNights);
+                                                 const travelers = Array.isArray(payload.travelers) && payload.travelers.length ? payload.travelers : null;
                                                  const booking = {
                                                            id: createBookingId(), status: STATUS.pending, createdAt: new Date().toISOString(),
-                                                           destinationId: payload.destinationId, destinationName: payload.destinationName,
+                                                           destinationId: payload.destinationId, destinationName: itinerary ? itinerary.map((s) => s.destinationName).filter(Boolean).join(" → ") : payload.destinationName,
                                                            spot: payload.spot, date: payload.date, purpose: payload.purpose, accommodationNights,
+                                                           itinerary, travelers, travelerCount: travelers ? travelers.length : Number(payload.travelerCount || 1),
                                                            customer: payload.customer, notes: payload.notes, source: payload.source,
                                                            providerReference: null, paymentStatus: "AUTHORIZED_HOLD",
                                                            paymentPolicy: { holdUntilStatus: [STATUS.confirmed, STATUS.rejected, STATUS.escalated], captureOn: STATUS.confirmed, refundOn: [STATUS.rejected] },
-                                                           components: [
-                                                             { type: "spot", label: payload.spot || "Destination Slot", status: "PENDING_PROVIDER", maxWaitMinutes: sla.spotMaxWaitMinutes },
-                                                                       ...(accommodationNights > 0 ? [{ type: "accommodation", label: `${accommodationNights} night(s) accommodation`, status: "PENDING_PROVIDER", maxWaitMinutes: sla.stayMaxWaitMinutes }] : []),
-                                                                     ],
+                                                           components,
                                                            sla, notifications: [],
                                                  };
                                                  booking.notifications = [
@@ -644,11 +665,15 @@ const server = http.createServer(async (req, res) => {
                                                  const bookings = await store.getBookings();
                                                  const index = bookings.findIndex((item) => item.id === payload.bookingId);
                                                  if (index < 0) return sendJson(res, 404, { error: "Booking not found" });
-                                                 if (payload.componentType) {
+                                                 if (payload.componentId) {
+                                                           const component = (bookings[index].components || []).find((item) => item.id === payload.componentId);
+                                                           if (component && payload.status) component.status = payload.status;
+                                                 } else if (payload.componentType) {
                                                            const component = (bookings[index].components || []).find((item) => item.type === payload.componentType);
                                                            if (component && payload.status) component.status = payload.status;
+                                                 } else {
+                                                           bookings[index].status = payload.status || bookings[index].status;
                                                  }
-                                                 bookings[index].status = payload.status || bookings[index].status;
                                                  bookings[index].providerReference = payload.providerReference || bookings[index].providerReference;
                                                  bookings[index] = evaluateBookingLifecycle(bookings[index]);
                                                  const updatedBooking = bookings[index];
