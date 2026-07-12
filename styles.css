@@ -753,6 +753,148 @@ textarea {
   color: #a7b6b1;
 }
 
+/* ---- Weather widget ---- */
+.wx-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.wx-loading,
+.wx-error {
+  font-size: 0.85rem;
+  color: #7a8b85;
+  font-style: italic;
+}
+.wx-now {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.wx-ic-big {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+.wx-now-body {
+  display: flex;
+  flex-direction: column;
+}
+.wx-now-body strong {
+  font-size: 1.5rem;
+}
+.wx-now-body span {
+  font-size: 0.85rem;
+  color: #6b7d77;
+}
+.wx-forecast {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.4rem;
+}
+.wx-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.5rem 0.2rem;
+  background: rgba(13, 122, 112, 0.06);
+  border-radius: 12px;
+  font-size: 0.75rem;
+}
+.wx-day .wx-ic {
+  font-size: 1.3rem;
+}
+.wx-dow {
+  font-weight: 700;
+  color: #0d7a70;
+}
+.wx-temps {
+  color: #4d5f59;
+}
+
+/* ---- Maps ---- */
+.detail-map {
+  width: 100%;
+  height: 240px;
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 0;
+}
+.detail-countdown {
+  margin: 0.7rem 0 0;
+  font-weight: 600;
+  color: #0d7a70;
+  font-size: 0.9rem;
+}
+.trip-map {
+  width: 100%;
+  height: 260px;
+  border-radius: 14px;
+  overflow: hidden;
+  margin: 0.6rem 0;
+  z-index: 0;
+}
+.leaflet-container {
+  font: inherit;
+}
+
+/* ---- Budget ---- */
+.trip-budget {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: linear-gradient(135deg, rgba(194, 65, 12, 0.1), rgba(13, 122, 112, 0.1));
+  border: 1px solid rgba(194, 65, 12, 0.2);
+  border-radius: 14px;
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.7rem;
+}
+.trip-budget strong {
+  font-size: 0.95rem;
+}
+.trip-budget .budget-range {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #c2410c;
+}
+.trip-budget small {
+  font-size: 0.75rem;
+  color: #6b7d77;
+}
+
+/* ---- Voucher box ---- */
+.voucher-box {
+  margin-top: 0.9rem;
+  padding: 0.9rem 1rem;
+  background: rgba(13, 122, 112, 0.08);
+  border: 1px dashed rgba(13, 122, 112, 0.4);
+  border-radius: 14px;
+  text-align: center;
+}
+.voucher-box p {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .wx-day {
+  background: rgba(255, 255, 255, 0.06);
+}
+[data-theme="dark"] .wx-dow,
+[data-theme="dark"] .detail-countdown {
+  color: #5fd0c4;
+}
+[data-theme="dark"] .wx-temps,
+[data-theme="dark"] .wx-now-body span,
+[data-theme="dark"] .trip-budget small {
+  color: #a7b6b1;
+}
+[data-theme="dark"] .trip-budget {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+[data-theme="dark"] .voucher-box {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 .site-footer {
   text-align: center;
   color: #4d5f59;
