@@ -122,7 +122,11 @@ async function saveBookings(bookings) {
     }
     return;
   }
-  writeJsonFile(BOOKINGS_FILE, bookings);
+  // File mode: upsert by id (merge) so saving a subset never wipes other bookings.
+  const existing = readJsonFile(BOOKINGS_FILE, []);
+  const byId = new Map((Array.isArray(existing) ? existing : []).map((b) => [b.id, b]));
+  for (const booking of bookings) byId.set(booking.id, booking);
+  writeJsonFile(BOOKINGS_FILE, [...byId.values()]);
 }
 
 /* ---------- community ---------- */
