@@ -1440,8 +1440,13 @@ const dom = {
   chatInput: document.getElementById("chatInput"),
   addStopBtn: document.getElementById("addStopBtn"),
   tripList: document.getElementById("tripList"),
+  tripMap: document.getElementById("tripMap"),
+  tripBudget: document.getElementById("tripBudget"),
   tripSummary: document.getElementById("tripSummary"),
   bookTripBtn: document.getElementById("bookTripBtn"),
+  travelDate: document.getElementById("travelDate"),
+  voucherBox: document.getElementById("voucherBox"),
+  downloadVoucherBtn: document.getElementById("downloadVoucherBtn"),
   detailContent: document.getElementById("detailContent"),
   exploreNow: document.getElementById("exploreNow"),
   quickTirupati: document.getElementById("quickTirupati"),
@@ -1455,6 +1460,7 @@ const state = {
   ratings: {},
   reviewSort: "newest",
   trip: [],
+  lastBooking: null,
 };
 
 const PARTNER_API_CONNECTED = false;
@@ -1663,7 +1669,21 @@ function renderDetail(place) {
       <p><b>Best package format:</b> ${place.bookingHint}</p>
       <p><b>Geo coordinates:</b> ${place.lat}, ${place.lon}</p>
     </article>
+    <article class="detail-card wx-card">
+      <h4>🌦️ Live Weather &amp; 4-Day Forecast</h4>
+      <div id="detailWeather" class="wx-box"></div>
+    </article>
+    <article class="detail-card map-card">
+      <h4>🗺️ Location Map</h4>
+      <div id="detailMap" class="detail-map"></div>
+      <p id="detailCountdown" class="detail-countdown"></p>
+    </article>
   `;
+
+  loadDestinationWeather(place);
+  renderDestinationMap(place);
+  const cd = document.getElementById("detailCountdown");
+  if (cd) cd.textContent = countdownText(dom.travelDate ? dom.travelDate.value : "");
 }
 
 function renderPlaces() {
@@ -1691,6 +1711,296 @@ function selectDestination(id) {
 
 function activeDestination() {
   return destinations.find((d) => d.id === dom.destinationSelect.value) || destinations[0];
+}
+
+/* ============================================================
+   Rich enrichment: live weather, maps, budget, countdown, voucher
+   ============================================================ */
+
+// --- Weather (Open-Meteo, no API key required) ---
+function wxInfo(code) {
+  const map = {
+    0: ["☀️", "Clear sky"],
+    1: ["🌤️", "Mainly clear"],
+    2: ["⛅", "Partly cloudy"],
+    3: ["☁️", "Overcast"],
+    45: ["🌫️", "Fog"],
+    48: ["🌫️", "Rime fog"],
+    51: ["🌦️", "Light drizzle"],
+    53: ["🌦️", "Drizzle"],
+    55: ["🌧️", "Heavy drizzle"],
+    61: ["🌦️", "Light rain"],
+    63: ["🌧️", "Rain"],
+    65: ["🌧️", "Heavy rain"],
+    71: ["🌨️", "Light snow"],
+    73: ["🌨️", "Snow"],
+    75: ["❄️", "Heavy snow"],
+    80: ["🌦️", "Rain showers"],
+    81: ["🌧️", "Rain showers"],
+    82: ["⛈️", "Violent showers"],
+    95: ["⛈️", "Thunderstorm"],
+    96: ["⛈️", "Thunderstorm + hail"],
+    99: ["⛈️", "Severe thunderstorm"],
+  };
+  const found = map[code];
+  return { icon: found ? found[0] : "🌡️", label: found ? found[1] : "Weather" };
+}
+
+async function loadDestinationWeather(place) {
+  const el = document.getElementById("detailWeather");
+  if (!el) return;
+  if (place.lat == null || place.lon == null) {
+    el.innerHTML = '<p class="wx-error">No coordinates available for this place.</p>';
+    return;
+  }
+  el.innerHTML = '<p class="wx-loading">Loading live weather…</p>';
+  try {
+    const url =
+      `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}` +
+      `&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min` +
+      `&timezone=auto&forecast_days=4`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("weather unavailable");
+    const data = await res.json();
+    const cur = data.current || {};
+    const ci = wxInfo(cur.weather_code);
+    const times = (data.daily && data.daily.time) || [];
+    const days = times
+      .map((t, i) => {
+        const di = wxInfo(data.daily.weather_code[i]);
+        const label = new Date(t + "T00:00:00").toLocaleDateString(undefined, { weekday: "short" });
+        const hi = Math.round(data.daily.temperature_2m_max[i]);
+        const lo = Math.round(data.daily.temperature_2m_min[i]);
+        return `<div class="wx-day"><span class="wx-dow">${label}</span><span class="wx-ic">${di.icon}</span><span class="wx-temps">${hi}° / ${lo}°</span></div>`;
+      })
+      .join("");
+    el.innerHTML =
+      `<div class="wx-now"><span class="wx-ic-big">${ci.icon}</span>` +
+      `<div class="wx-now-body"><strong>${Math.round(cur.temperature_2m)}°C</strong>` +
+      `<span>${ci.label}</span></div></div>` +
+      `<div class="wx-forecast">${days}</div>`;
+  } catch (_e) {
+    el.innerHTML = '<p class="wx-error">Live weather is unavailable right now. Please try again later.</p>';
+  }
+}
+
+// --- Maps (Leaflet + OpenStreetMap, no API key required) ---
+let detailMapInstance = null;
+let tripMapInstance = null;
+
+function osmTileLayer() {
+  return L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18,
+    attribution: "&copy; OpenStreetMap contributors",
+  });
+}
+
+function renderDestinationMap(place) {
+  const el = document.getElementById("detailMap");
+  if (!el) return;
+  if (typeof L === "undefined" || place.lat == null || place.lon == null) {
+    el.style.display = "none";
+    return;
+  }
+  el.style.display = "block";
+  if (detailMapInstance) {
+    detailMapInstance.remove();
+    detailMapInstance = null;
+  }
+  detailMapInstance = L.map(el, { scrollWheelZoom: false }).setView([place.lat, place.lon], 9);
+  osmTileLayer().addTo(detailMapInstance);
+  L.marker([place.lat, place.lon])
+    .addTo(detailMapInstance)
+    .bindPopup(`<b>${escapeHtml(place.name)}</b><br>${escapeHtml(place.country)}`)
+    .openPopup();
+  setTimeout(() => detailMapInstance && detailMapInstance.invalidateSize(), 200);
+}
+
+function renderTripMap() {
+  const el = dom.tripMap;
+  if (!el) return;
+  const pts = state.trip
+    .map((s) => {
+      const dst = destinations.find((d) => d.id === s.destinationId);
+      return dst && dst.lat != null ? { lat: dst.lat, lon: dst.lon, name: dst.name } : null;
+    })
+    .filter(Boolean);
+  if (typeof L === "undefined" || pts.length === 0) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  if (tripMapInstance) {
+    tripMapInstance.remove();
+    tripMapInstance = null;
+  }
+  tripMapInstance = L.map(el, { scrollWheelZoom: false }).setView([pts[0].lat, pts[0].lon], 4);
+  osmTileLayer().addTo(tripMapInstance);
+  const latlngs = [];
+  pts.forEach((p, i) => {
+    L.marker([p.lat, p.lon])
+      .addTo(tripMapInstance)
+      .bindPopup(`${i + 1}. ${escapeHtml(p.name)}`);
+    latlngs.push([p.lat, p.lon]);
+  });
+  if (latlngs.length > 1) {
+    L.polyline(latlngs, { color: "#c2410c", weight: 3, dashArray: "6 8" }).addTo(tripMapInstance);
+    tripMapInstance.fitBounds(L.latLngBounds(latlngs).pad(0.35));
+  }
+  setTimeout(() => tripMapInstance && tripMapInstance.invalidateSize(), 200);
+}
+
+// --- Budget estimator (rough, transparent heuristics) ---
+const BUDGET_RATES = {
+  stayPerNight: 2800, // INR per room per night
+  travelersPerRoom: 2,
+  transportPerStop: 3200, // INR per traveler per stop
+  foodPerDay: 700, // INR per traveler per day
+  entry: { general: 200, special: 700, vip: 2500 },
+};
+
+function estimateStopCost(stop, travelers) {
+  const nights = Number(stop.accommodationNights || 0);
+  const rooms = Math.max(1, Math.ceil(travelers / BUDGET_RATES.travelersPerRoom));
+  const stay = nights * rooms * BUDGET_RATES.stayPerNight;
+  const transport = BUDGET_RATES.transportPerStop * travelers;
+  const days = Math.max(1, nights);
+  const food = BUDGET_RATES.foodPerDay * travelers * days;
+  const entryRate = BUDGET_RATES.entry[stop.entryType] ?? BUDGET_RATES.entry.general;
+  const entry = entryRate * travelers;
+  return stay + transport + food + entry;
+}
+
+function formatInr(n) {
+  return "₹" + Math.round(n).toLocaleString("en-IN");
+}
+
+function renderTripBudget() {
+  const el = dom.tripBudget;
+  if (!el) return;
+  if (!state.trip.length) {
+    el.hidden = true;
+    return;
+  }
+  const travelersInput = document.getElementById("travelers");
+  const travelers = Math.max(1, Number(travelersInput ? travelersInput.value : 1) || 1);
+  const total = state.trip.reduce((sum, s) => sum + estimateStopCost(s, travelers), 0);
+  el.hidden = false;
+  el.innerHTML =
+    `<strong>💰 Estimated trip budget</strong>` +
+    `<span class="budget-range">${formatInr(total * 0.85)} – ${formatInr(total * 1.15)}</span>` +
+    `<small>for ${travelers} traveller(s) across ${state.trip.length} stop(s). Rough estimate covering stay, ` +
+    `local travel, food &amp; entry. Actual prices vary by season and provider.</small>`;
+}
+
+// --- Countdown ---
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const target = new Date(dateStr + "T00:00:00");
+  if (Number.isNaN(target.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+function countdownText(dateStr) {
+  const d = daysUntil(dateStr);
+  if (d === null) return "Pick a travel date above to see your countdown.";
+  if (d > 1) return `🗓️ ${d} days to go until your journey.`;
+  if (d === 1) return "🗓️ Just 1 day to go — almost there!";
+  if (d === 0) return "🎉 Your journey is today!";
+  return "🕓 This travel date is in the past.";
+}
+
+function refreshCountdowns() {
+  const value = dom.travelDate ? dom.travelDate.value : "";
+  const cd = document.getElementById("detailCountdown");
+  if (cd) cd.textContent = countdownText(value);
+  renderTrip();
+}
+
+// --- Printable voucher ---
+function showVoucher(voucher) {
+  state.lastBooking = voucher;
+  if (dom.voucherBox) dom.voucherBox.hidden = false;
+}
+
+function buildVoucherHtml(v) {
+  const esc = (s) => escapeHtml(String(s == null ? "" : s));
+  const legRows = (v.components || [])
+    .map(
+      (c) =>
+        `<tr><td>${esc(c.label || c.type || "Component")}</td>` +
+        `<td>${esc(c.location || "-")}</td>` +
+        `<td>${esc(c.status || "PENDING")}</td></tr>`
+    )
+    .join("");
+  const legTable = legRows
+    ? `<table class="legs"><thead><tr><th>Leg</th><th>Location</th><th>Status</th></tr></thead><tbody>${legRows}</tbody></table>`
+    : "";
+  return `<!doctype html><html><head><meta charset="utf-8" />
+    <title>GlobeTirtha Voucher ${esc(v.id)}</title>
+    <style>
+      *{box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}
+      body{margin:0;padding:32px;background:#f4f1ea;color:#1f2937}
+      .voucher{max-width:720px;margin:0 auto;background:#fff;border-radius:18px;overflow:hidden;
+        box-shadow:0 12px 40px rgba(0,0,0,.12);border:1px solid #e5e0d5}
+      .vhead{background:linear-gradient(135deg,#7c2d12,#c2410c);color:#fff;padding:26px 30px}
+      .vhead h1{margin:0;font-size:24px;letter-spacing:.5px}
+      .vhead p{margin:6px 0 0;opacity:.9;font-size:13px}
+      .vbody{padding:26px 30px}
+      .ref{font-size:13px;color:#6b7280;margin:0 0 4px}
+      .refval{font-size:22px;font-weight:700;color:#c2410c;margin:0 0 18px;letter-spacing:1px}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 24px;margin:0 0 20px}
+      .cell b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#9ca3af}
+      .cell span{font-size:15px;font-weight:600}
+      .status{display:inline-block;padding:6px 12px;border-radius:999px;background:#fef3c7;color:#92400e;font-weight:700;font-size:13px}
+      table.legs{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+      table.legs th,table.legs td{text-align:left;padding:8px 10px;border-bottom:1px solid #eee}
+      table.legs th{background:#faf7f0;color:#6b7280;text-transform:uppercase;font-size:11px}
+      .foot{padding:18px 30px;background:#faf7f0;font-size:12px;color:#6b7280;border-top:1px solid #eee}
+      @media print{body{background:#fff;padding:0}.voucher{box-shadow:none;border:none}}
+    </style></head><body>
+    <div class="voucher">
+      <div class="vhead"><h1>🧭 GlobeTirtha Travel Voucher</h1>
+        <p>Holy &amp; Vacation Booking • Keep this voucher for your records</p></div>
+      <div class="vbody">
+        <p class="ref">Booking reference</p>
+        <p class="refval">${esc(v.id)}</p>
+        <p><span class="status">${esc(v.status || "PENDING")}</span></p>
+        <div class="grid">
+          <div class="cell"><b>Traveller</b><span>${esc(v.customerName)}</span></div>
+          <div class="cell"><b>Travellers</b><span>${esc(v.travelerCount || 1)}</span></div>
+          <div class="cell"><b>Route / Destination</b><span>${esc(v.route || v.destinationName)}</span></div>
+          <div class="cell"><b>Spot</b><span>${esc(v.spot || "—")}</span></div>
+          <div class="cell"><b>Travel date</b><span>${esc(v.date || "—")}</span></div>
+          <div class="cell"><b>Purpose</b><span>${esc(v.purpose || "—")}</span></div>
+          <div class="cell"><b>Nights</b><span>${esc(v.nights == null ? "—" : v.nights)}</span></div>
+          <div class="cell"><b>Payment</b><span>${esc(v.paymentStatus || "PENDING")}</span></div>
+        </div>
+        ${legTable}
+      </div>
+      <div class="foot">
+        Travel only after status shows CONFIRMED. Support: 1800-123-456 • support@globetirtha.com<br>
+        Issued ${esc(new Date().toLocaleString())} • This is a booking record, not a payment receipt.
+      </div>
+    </div>
+    <script>window.onload=function(){setTimeout(function(){window.print();},350);};<\/script>
+  </body></html>`;
+}
+
+function openVoucher() {
+  const v = state.lastBooking;
+  if (!v) return;
+  const w = window.open("", "_blank");
+  if (!w) {
+    if (typeof showToast === "function") showToast("Please allow pop-ups to download your voucher.");
+    return;
+  }
+  w.document.open();
+  w.document.write(buildVoucherHtml(v));
+  w.document.close();
+  w.focus();
 }
 
 /* ============================================================
@@ -2162,6 +2472,8 @@ function renderTrip() {
     dom.tripList.innerHTML = '<p class="trip-empty">No stops added yet. Select a destination above and click "Add current selection as a stop".</p>';
     dom.tripSummary.textContent = "";
     dom.bookTripBtn.disabled = true;
+    if (dom.tripMap) dom.tripMap.hidden = true;
+    if (dom.tripBudget) dom.tripBudget.hidden = true;
     return;
   }
 
@@ -2180,8 +2492,13 @@ function renderTrip() {
     .join("");
 
   const totalNights = state.trip.reduce((sum, s) => sum + Number(s.accommodationNights || 0), 0);
-  dom.tripSummary.textContent = `${state.trip.length} stop(s) · ${totalNights} total night(s). Fill your name, email and phone above, then book the whole journey.`;
+  const countdown = countdownText(dom.travelDate ? dom.travelDate.value : "");
+  dom.tripSummary.textContent =
+    `${state.trip.length} stop(s) · ${totalNights} total night(s). ${countdown} ` +
+    `Fill your name, email and phone above, then book the whole journey.`;
   dom.bookTripBtn.disabled = false;
+  renderTripMap();
+  renderTripBudget();
 }
 
 function addCurrentStopToTrip() {
@@ -2192,6 +2509,7 @@ function addCurrentStopToTrip() {
     destinationName: destination.name,
     spot: dom.subPlaceSelect.value || destination.name,
     purpose: document.getElementById("purposeSelect").value,
+    entryType: (document.getElementById("entryType") || {}).value || "general",
     accommodationNights: Number(document.getElementById("accommodationNights").value || 0),
     source: destination.source || "catalog",
   };
@@ -2240,6 +2558,19 @@ async function bookEntireTrip() {
     `${notificationSummaryLines(createdBooking.notifications).join("\n")}\n` +
     `${componentChecklistLines(createdBooking.components).join("\n")}\n\n` +
     "Each leg is being confirmed separately. Track them anytime with your reference in 'Check Official Status'.";
+
+  showVoucher({
+    id: createdBooking.id,
+    status: createdBooking.status,
+    paymentStatus: createdBooking.paymentStatus,
+    customerName: name,
+    travelerCount,
+    route: createdBooking.destinationName,
+    destinationName: createdBooking.destinationName,
+    date,
+    purpose: state.trip[0] ? state.trip[0].purpose : "",
+    components: createdBooking.components,
+  });
 
   dom.bookingRefInput.value = createdBooking.id;
   state.trip = [];
@@ -2353,11 +2684,31 @@ function bindEvents() {
     dom.destinationSelect.value = destination.id;
     updateSubPlaceOptions(destination);
     dom.bookingRefInput.value = createdBooking.id;
+
+    showVoucher({
+      id: createdBooking.id,
+      status: createdBooking.status,
+      paymentStatus: createdBooking.paymentStatus,
+      customerName: name,
+      travelerCount: Number(document.getElementById("travelers").value || 1),
+      route: destination.name,
+      destinationName: destination.name,
+      spot,
+      date,
+      purpose,
+      nights: accommodationNights,
+      components: createdBooking.components,
+    });
   });
 
   dom.checkStatusBtn.addEventListener("click", () => {
     runBookingStatusCheck(dom.bookingRefInput.value.trim());
   });
+
+  if (dom.downloadVoucherBtn) dom.downloadVoucherBtn.addEventListener("click", openVoucher);
+  if (dom.travelDate) dom.travelDate.addEventListener("change", refreshCountdowns);
+  const travelersInput = document.getElementById("travelers");
+  if (travelersInput) travelersInput.addEventListener("input", renderTripBudget);
 
   if (dom.addStopBtn) dom.addStopBtn.addEventListener("click", addCurrentStopToTrip);
   if (dom.bookTripBtn) dom.bookTripBtn.addEventListener("click", bookEntireTrip);
