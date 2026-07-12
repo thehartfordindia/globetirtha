@@ -60,7 +60,7 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260712b" />
+    <link rel="stylesheet" href="styles.css?v=20260712c" />
   </head>
   <body>
     <header class="site-header">
@@ -266,6 +266,23 @@
             </label>
             <button type="submit" class="btn btn-primary">Confirm Booking</button>
           </form>
+
+          <div class="trip-planner" id="tripPlanner">
+            <div class="trip-planner-head">
+              <h4>🧳 Build a Multi-Stop Journey</h4>
+              <p>
+                Planning a trip across several holy places or cities? Add each stop with its own stay,
+                and book the whole journey in one go. Each stop is confirmed independently — you'll see a
+                live checklist for every leg.
+              </p>
+            </div>
+            <button type="button" id="addStopBtn" class="btn btn-live">➕ Add current selection as a stop</button>
+            <div id="tripList" class="trip-list"></div>
+            <div id="tripSummary" class="trip-summary"></div>
+            <button type="button" id="bookTripBtn" class="btn btn-primary trip-book-btn" disabled>
+              Book Entire Trip
+            </button>
+          </div>
 
           <div class="integration-note">
             <h4>Professional Integration Status</h4>
@@ -538,6 +555,6 @@
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
-    <script src="app.js?v=20260712" defer></script>
+    <script src="app.js?v=20260712c" defer></script>
   </body>
 </html>
