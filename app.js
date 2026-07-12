@@ -1438,6 +1438,10 @@ const dom = {
   chatChips: document.getElementById("chatChips"),
   chatForm: document.getElementById("chatForm"),
   chatInput: document.getElementById("chatInput"),
+  addStopBtn: document.getElementById("addStopBtn"),
+  tripList: document.getElementById("tripList"),
+  tripSummary: document.getElementById("tripSummary"),
+  bookTripBtn: document.getElementById("bookTripBtn"),
   detailContent: document.getElementById("detailContent"),
   exploreNow: document.getElementById("exploreNow"),
   quickTirupati: document.getElementById("quickTirupati"),
@@ -1450,6 +1454,7 @@ const state = {
   userPlaces: [],
   ratings: {},
   reviewSort: "newest",
+  trip: [],
 };
 
 const PARTNER_API_CONNECTED = false;
@@ -1488,6 +1493,23 @@ function notificationSummaryLines(notifications) {
     (item) =>
       `${item.channel.toUpperCase()}: ${item.status}${item.detail ? ` (${item.detail})` : ""}`
   );
+}
+
+function componentStatusIcon(status) {
+  if (status === "CONFIRMED_BY_PROVIDER") return "✅";
+  if (status === "REJECTED_BY_PROVIDER") return "❌";
+  if (status === "PENDING_PROVIDER_DELAYED") return "⏳";
+  return "🕓";
+}
+
+function componentChecklistLines(components) {
+  if (!Array.isArray(components) || !components.length) return [];
+  const lines = ["", "Trip checklist (each item confirmed separately):"];
+  components.forEach((c) => {
+    const where = c.location ? `${c.location} — ` : "";
+    lines.push(`  ${componentStatusIcon(c.status)} ${where}${c.label || c.type}: ${c.status}`);
+  });
+  return lines;
 }
 
 function normalizeToken(token) {
@@ -2065,7 +2087,8 @@ async function runBookingStatusCheck(referenceId) {
     `Elapsed wait: ${booking.elapsedMinutes ?? "N/A"} minutes\n` +
     `ETA remaining: ${booking.etaMinutesRemaining ?? "N/A"} minutes\n` +
     `Channel: ${booking.mode === "backend" ? "Backend API" : "Local Fallback"}\n` +
-    `${notificationSummaryLines(booking.notifications).join("\n")}\n\n` +
+    `${notificationSummaryLines(booking.notifications).join("\n")}\n` +
+    `${componentChecklistLines(booking.components).join("\n")}\n\n` +
     `Next action: ${booking.nextAction || "Wait for provider callback"}\n\n` +
     "Official travel should proceed only when status is CONFIRMED_BY_PROVIDER.";
 }
@@ -2125,6 +2148,102 @@ async function runLiveCurrentLocationSearch() {
       dom.liveStatus.textContent = "Location permission denied. You can still use Live Geo Search by query.";
     }
   );
+}
+
+function tripStopSummary(stop) {
+  const nights = Number(stop.accommodationNights || 0);
+  const stayText = nights > 0 ? `${nights} night(s) stay` : "no stay";
+  return `${stop.spot || stop.destinationName} · ${stayText} · ${stop.purpose}`;
+}
+
+function renderTrip() {
+  if (!dom.tripList) return;
+  if (!state.trip.length) {
+    dom.tripList.innerHTML = '<p class="trip-empty">No stops added yet. Select a destination above and click "Add current selection as a stop".</p>';
+    dom.tripSummary.textContent = "";
+    dom.bookTripBtn.disabled = true;
+    return;
+  }
+
+  dom.tripList.innerHTML = state.trip
+    .map(
+      (stop, i) => `
+        <div class="trip-stop">
+          <span class="trip-stop-num">${i + 1}</span>
+          <div class="trip-stop-body">
+            <strong>${escapeHtml(stop.destinationName)}</strong>
+            <span>${escapeHtml(tripStopSummary(stop))}</span>
+          </div>
+          <button type="button" class="trip-stop-remove" data-remove-stop="${i}">Remove</button>
+        </div>`
+    )
+    .join("");
+
+  const totalNights = state.trip.reduce((sum, s) => sum + Number(s.accommodationNights || 0), 0);
+  dom.tripSummary.textContent = `${state.trip.length} stop(s) · ${totalNights} total night(s). Fill your name, email and phone above, then book the whole journey.`;
+  dom.bookTripBtn.disabled = false;
+}
+
+function addCurrentStopToTrip() {
+  const destination = activeDestination();
+  if (!destination) return;
+  const stop = {
+    destinationId: destination.id,
+    destinationName: destination.name,
+    spot: dom.subPlaceSelect.value || destination.name,
+    purpose: document.getElementById("purposeSelect").value,
+    accommodationNights: Number(document.getElementById("accommodationNights").value || 0),
+    source: destination.source || "catalog",
+  };
+  state.trip.push(stop);
+  renderTrip();
+  dom.tripSummary.textContent = `Added ${stop.destinationName}. ${state.trip.length} stop(s) in your journey.`;
+}
+
+async function bookEntireTrip() {
+  if (!state.trip.length) return;
+  const name = document.getElementById("fullName").value.trim();
+  const email = document.getElementById("email").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const date = document.getElementById("travelDate").value;
+  const notes = document.getElementById("notes").value.trim();
+  const travelerCount = Number(document.getElementById("travelers").value || 1);
+
+  if (!name || !email || !phone) {
+    dom.assistOutput.textContent = "Please fill your Name, Email and Phone above before booking the trip.";
+    document.getElementById("book").scrollIntoView({ behavior: "smooth", block: "start" });
+    return;
+  }
+
+  dom.bookTripBtn.disabled = true;
+  dom.assistOutput.textContent = "Booking your multi-stop journey ...";
+
+  const createdBooking = await createBooking({
+    destinationName: state.trip.map((s) => s.destinationName).join(" → "),
+    purpose: state.trip[0].purpose,
+    date,
+    travelerCount,
+    itinerary: state.trip,
+    customer: { name, email, phone },
+    notes,
+    source: "trip-planner",
+  });
+
+  dom.assistOutput.textContent =
+    `Journey request received for ${name} (${travelerCount} traveller(s)).\n` +
+    `Reference: ${createdBooking.id}\n` +
+    `Status: ${createdBooking.status}\n` +
+    `Payment: ${createdBooking.paymentStatus || "PENDING"}\n` +
+    `Route: ${createdBooking.destinationName}\n` +
+    `Travel date: ${date || "N/A"}\n` +
+    `Max confirmation window: ${createdBooking.sla?.globalMaxWaitMinutes || "N/A"} minutes\n` +
+    `${notificationSummaryLines(createdBooking.notifications).join("\n")}\n` +
+    `${componentChecklistLines(createdBooking.components).join("\n")}\n\n` +
+    "Each leg is being confirmed separately. Track them anytime with your reference in 'Check Official Status'.";
+
+  dom.bookingRefInput.value = createdBooking.id;
+  state.trip = [];
+  renderTrip();
 }
 
 function bindEvents() {
@@ -2240,6 +2359,19 @@ function bindEvents() {
     runBookingStatusCheck(dom.bookingRefInput.value.trim());
   });
 
+  if (dom.addStopBtn) dom.addStopBtn.addEventListener("click", addCurrentStopToTrip);
+  if (dom.bookTripBtn) dom.bookTripBtn.addEventListener("click", bookEntireTrip);
+  if (dom.tripList) {
+    dom.tripList.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const idx = target.dataset.removeStop;
+      if (idx === undefined) return;
+      state.trip.splice(Number(idx), 1);
+      renderTrip();
+    });
+  }
+
   dom.assistBtn.addEventListener("click", () => {
     generateAssistancePlan(activeDestination());
   });
@@ -2276,6 +2408,7 @@ function init() {
   generateAssistancePlan(initial);
   bindEvents();
   initChatbot();
+  renderTrip();
   handleBookingLinkParam();
 }
 
