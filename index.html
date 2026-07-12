@@ -60,7 +60,13 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260712c" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="stylesheet" href="styles.css?v=20260712d" />
   </head>
   <body>
     <header class="site-header">
@@ -278,6 +284,8 @@
             </div>
             <button type="button" id="addStopBtn" class="btn btn-live">➕ Add current selection as a stop</button>
             <div id="tripList" class="trip-list"></div>
+            <div id="tripMap" class="trip-map" hidden></div>
+            <div id="tripBudget" class="trip-budget" hidden></div>
             <div id="tripSummary" class="trip-summary"></div>
             <button type="button" id="bookTripBtn" class="btn btn-primary trip-book-btn" disabled>
               Book Entire Trip
@@ -342,6 +350,10 @@
 
           <button id="assistBtn" class="btn btn-assist assist-plan-btn">Get Guided Plan</button>
           <div id="assistOutput" class="assist-output"></div>
+          <div id="voucherBox" class="voucher-box" hidden>
+            <p>🎫 Your booking voucher is ready.</p>
+            <button id="downloadVoucherBtn" class="btn btn-primary" type="button">Download / Print Voucher</button>
+          </div>
         </aside>
       </section>
 
@@ -555,6 +567,12 @@
 
     <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
-    <script src="app.js?v=20260712c" defer></script>
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+      defer
+    ></script>
+    <script src="app.js?v=20260712d" defer></script>
   </body>
 </html>
